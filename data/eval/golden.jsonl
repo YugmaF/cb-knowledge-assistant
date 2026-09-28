@@ -1,0 +1,24 @@
+{"question": "What is the response SLA for acknowledging a SEV1 incident?", "expected_doc_ids": ["POL-003"], "role": "viewer"}
+{"question": "Within how many business days must a postmortem be published after a SEV1 or SEV2 incident?", "expected_doc_ids": ["POL-003"], "role": "viewer"}
+{"question": "Is a canary rollout required for configuration changes to payments services, and for how long?", "expected_doc_ids": ["POL-004"], "role": "viewer"}
+{"question": "When is the salary day change freeze window?", "expected_doc_ids": ["POL-004"], "role": "viewer"}
+{"question": "Can I paste customer account details into an external AI chatbot?", "expected_doc_ids": ["POL-005"], "role": "viewer"}
+{"question": "What are the four data classification levels and which roles can see confidential documents?", "expected_doc_ids": ["POL-002"], "role": "viewer"}
+{"question": "How many days per week can I work remotely?", "expected_doc_ids": ["POL-006"], "role": "viewer"}
+{"question": "How do I manually rotate the CardNet Gateway TLS certificate?", "expected_doc_ids": ["RB-001"], "role": "viewer"}
+{"question": "What should the on-call engineer check first when payments-ledger runs out of database connections?", "expected_doc_ids": ["RB-002"], "role": "viewer"}
+{"question": "What is the maximum amount for a single InstaPay payment?", "expected_doc_ids": ["SPEC-001"], "role": "viewer"}
+{"question": "How quickly must a real-time fraud alert reach the customer's phone?", "expected_doc_ids": ["SPEC-004"], "role": "viewer"}
+{"question": "What was the root cause of the payment gateway certificate expiry in November 2025?", "expected_doc_ids": ["INC-2025-020"], "role": "viewer"}
+{"question": "How many customers were affected by the NationalSwitch retry storm in December 2025?", "expected_doc_ids": ["INC-2025-025"], "role": "viewer"}
+{"question": "Which HSM firmware version caused the PIN verification failures in February 2026?", "expected_doc_ids": ["INC-2026-007"], "role": "analyst"}
+{"question": "How many customer accounts were successfully accessed during the March 2026 credential stuffing attack?", "expected_doc_ids": ["INC-2026-011"], "role": "analyst"}
+{"question": "What are the recurring root causes of payment failures over the last year?", "expected_doc_ids": ["INC-2025-015", "INC-2025-018", "INC-2025-020", "INC-2025-023", "INC-2025-025", "INC-2025-029", "INC-2026-004", "INC-2026-009", "INC-2026-012", "INC-2026-014", "INC-2026-020", "INC-2026-022", "INC-2026-026", "INC-2026-028", "MTG-2026-005"], "role": "analyst"}
+{"question": "What did the evaluation of Project Falcon recommend?", "expected_doc_ids": [], "role": "viewer"}
+{"question": "What maximum offer was recommended for Project Falcon?", "expected_doc_ids": ["MTG-2026-008"], "role": "admin"}
+{"question": "INC-2026-020", "expected_doc_ids": ["INC-2026-020"], "role": "viewer", "kind": "exact_id"}
+{"question": "what went wrong in INC-2026-002", "expected_doc_ids": ["INC-2026-002"], "role": "viewer", "kind": "exact_id"}
+{"question": "payments-ledger.internal pointed at a decommissioned load balancer", "expected_doc_ids": ["INC-2026-002"], "role": "viewer", "kind": "exact_term"}
+{"question": "the message backlog on the event stream made money transfers settle hours late", "expected_doc_ids": ["INC-2025-018", "INC-2026-020"], "role": "viewer", "kind": "paraphrase"}
+{"question": "employees could not sign in to any internal application in the morning", "expected_doc_ids": ["INC-2026-018"], "role": "viewer", "kind": "paraphrase"}
+{"question": "how do we replace real card numbers with surrogate values", "expected_doc_ids": ["SPEC-002"], "role": "viewer", "kind": "paraphrase"}

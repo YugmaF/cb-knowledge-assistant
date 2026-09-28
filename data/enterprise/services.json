@@ -1,0 +1,160 @@
+[
+  {
+    "service_id": "payments-api",
+    "name": "Payments API",
+    "owner_team": "payments-engineering",
+    "tier": 1,
+    "on_call_employee_id": "E003",
+    "dependencies": [
+      "payments-ledger",
+      "cardnet-gateway-adapter",
+      "nationalswitch-connector",
+      "fraud-engine"
+    ],
+    "runbook_doc_id": "RB-005",
+    "status": "operational"
+  },
+  {
+    "service_id": "payments-ledger",
+    "name": "Payments Ledger",
+    "owner_team": "payments-engineering",
+    "tier": 1,
+    "on_call_employee_id": "E005",
+    "dependencies": [
+      "payment-events-kafka",
+      "core-banking-gateway"
+    ],
+    "runbook_doc_id": "RB-002",
+    "status": "operational"
+  },
+  {
+    "service_id": "cardnet-gateway-adapter",
+    "name": "CardNet Gateway Adapter",
+    "owner_team": "payments-engineering",
+    "tier": 1,
+    "on_call_employee_id": "E003",
+    "dependencies": [
+      "hsm-cluster",
+      "fraud-engine"
+    ],
+    "runbook_doc_id": "RB-001",
+    "status": "operational"
+  },
+  {
+    "service_id": "nationalswitch-connector",
+    "name": "NationalSwitch Connector",
+    "owner_team": "payments-engineering",
+    "tier": 1,
+    "on_call_employee_id": "E005",
+    "dependencies": [
+      "hsm-cluster"
+    ],
+    "runbook_doc_id": "RB-003",
+    "status": "operational"
+  },
+  {
+    "service_id": "payment-events-kafka",
+    "name": "payment-events Kafka Topic",
+    "owner_team": "platform-engineering",
+    "tier": 1,
+    "on_call_employee_id": "E007",
+    "dependencies": [],
+    "runbook_doc_id": "RB-004",
+    "status": "operational"
+  },
+  {
+    "service_id": "hsm-cluster",
+    "name": "HSM Cluster",
+    "owner_team": "security-operations",
+    "tier": 1,
+    "on_call_employee_id": "E011",
+    "dependencies": [],
+    "runbook_doc_id": null,
+    "status": "operational"
+  },
+  {
+    "service_id": "fraud-engine",
+    "name": "Fraud Engine",
+    "owner_team": "fraud-risk",
+    "tier": 1,
+    "on_call_employee_id": "E003",
+    "dependencies": [
+      "payment-events-kafka"
+    ],
+    "runbook_doc_id": "RB-005",
+    "status": "operational"
+  },
+  {
+    "service_id": "core-banking-gateway",
+    "name": "Core Banking Gateway",
+    "owner_team": "platform-engineering",
+    "tier": 1,
+    "on_call_employee_id": "E007",
+    "dependencies": [],
+    "runbook_doc_id": null,
+    "status": "operational"
+  },
+  {
+    "service_id": "mobile-bff",
+    "name": "Mobile Backend for Frontend",
+    "owner_team": "retail-digital",
+    "tier": 1,
+    "on_call_employee_id": "E018",
+    "dependencies": [
+      "sso",
+      "payments-api",
+      "core-banking-gateway",
+      "fraud-engine"
+    ],
+    "runbook_doc_id": "RB-005",
+    "status": "operational"
+  },
+  {
+    "service_id": "sso",
+    "name": "SSO Identity Platform",
+    "owner_team": "identity-engineering",
+    "tier": 1,
+    "on_call_employee_id": "E011",
+    "dependencies": [],
+    "runbook_doc_id": "RB-006",
+    "status": "operational"
+  },
+  {
+    "service_id": "hr-portal",
+    "name": "HR Portal",
+    "owner_team": "people-systems",
+    "tier": 3,
+    "on_call_employee_id": "E007",
+    "dependencies": [
+      "sso"
+    ],
+    "runbook_doc_id": null,
+    "status": "operational"
+  },
+  {
+    "service_id": "dwh-etl",
+    "name": "Data Warehouse ETL",
+    "owner_team": "data-engineering",
+    "tier": 2,
+    "on_call_employee_id": "E021",
+    "dependencies": [
+      "core-banking-gateway",
+      "payment-events-kafka"
+    ],
+    "runbook_doc_id": null,
+    "status": "operational"
+  },
+  {
+    "service_id": "branch-teller",
+    "name": "Branch Teller Application",
+    "owner_team": "retail-digital",
+    "tier": 2,
+    "on_call_employee_id": "E018",
+    "dependencies": [
+      "core-banking-gateway",
+      "sso"
+    ],
+    "runbook_doc_id": null,
+    "status": "degraded"
+  }
+]

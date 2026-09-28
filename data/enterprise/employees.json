@@ -1,0 +1,252 @@
+[
+  {
+    "employee_id": "E001",
+    "name": "Nirmala Wijesinghe",
+    "email": "nirmala.wijesinghe@commbank.example",
+    "department": "platform",
+    "title": "Chief Technology Officer",
+    "manager_id": null,
+    "location": "Colombo HQ",
+    "on_call": false
+  },
+  {
+    "employee_id": "E002",
+    "name": "Daniel Okafor",
+    "email": "daniel.okafor@commbank.example",
+    "department": "payments",
+    "title": "Head of Payments Engineering",
+    "manager_id": "E001",
+    "location": "Colombo HQ",
+    "on_call": false
+  },
+  {
+    "employee_id": "E003",
+    "name": "Kasun Perera",
+    "email": "kasun.perera@commbank.example",
+    "department": "payments",
+    "title": "Senior Payments Engineer",
+    "manager_id": "E002",
+    "location": "Colombo HQ",
+    "on_call": true
+  },
+  {
+    "employee_id": "E004",
+    "name": "Priya Raman",
+    "email": "priya.raman@commbank.example",
+    "department": "payments",
+    "title": "Payments Engineer",
+    "manager_id": "E002",
+    "location": "Remote",
+    "on_call": false
+  },
+  {
+    "employee_id": "E005",
+    "name": "Tharindu Jayasuriya",
+    "email": "tharindu.jayasuriya@commbank.example",
+    "department": "payments",
+    "title": "Payments Site Reliability Engineer",
+    "manager_id": "E002",
+    "location": "Colombo HQ",
+    "on_call": true
+  },
+  {
+    "employee_id": "E006",
+    "name": "Hannah Lindqvist",
+    "email": "hannah.lindqvist@commbank.example",
+    "department": "platform",
+    "title": "Head of Platform Engineering",
+    "manager_id": "E001",
+    "location": "Colombo HQ",
+    "on_call": false
+  },
+  {
+    "employee_id": "E007",
+    "name": "Ruwan Fernando",
+    "email": "ruwan.fernando@commbank.example",
+    "department": "platform",
+    "title": "Senior Platform SRE",
+    "manager_id": "E006",
+    "location": "Kandy",
+    "on_call": true
+  },
+  {
+    "employee_id": "E008",
+    "name": "Mei Chen",
+    "email": "mei.chen@commbank.example",
+    "department": "platform",
+    "title": "Platform Engineer (Kafka)",
+    "manager_id": "E006",
+    "location": "Remote",
+    "on_call": false
+  },
+  {
+    "employee_id": "E009",
+    "name": "Ashan Dissanayake",
+    "email": "ashan.dissanayake@commbank.example",
+    "department": "platform",
+    "title": "Database Reliability Engineer",
+    "manager_id": "E006",
+    "location": "Colombo HQ",
+    "on_call": true
+  },
+  {
+    "employee_id": "E010",
+    "name": "Sofia Marquez",
+    "email": "sofia.marquez@commbank.example",
+    "department": "security",
+    "title": "Chief Information Security Officer",
+    "manager_id": "E001",
+    "location": "Colombo HQ",
+    "on_call": false
+  },
+  {
+    "employee_id": "E011",
+    "name": "Dilini Gunawardena",
+    "email": "dilini.gunawardena@commbank.example",
+    "department": "security",
+    "title": "Security Operations Lead",
+    "manager_id": "E010",
+    "location": "Colombo HQ",
+    "on_call": true
+  },
+  {
+    "employee_id": "E012",
+    "name": "Omar Haddad",
+    "email": "omar.haddad@commbank.example",
+    "department": "security",
+    "title": "Identity Engineering Lead",
+    "manager_id": "E010",
+    "location": "Remote",
+    "on_call": false
+  },
+  {
+    "employee_id": "E013",
+    "name": "Chamari Senanayake",
+    "email": "chamari.senanayake@commbank.example",
+    "department": "hr",
+    "title": "Head of People",
+    "manager_id": null,
+    "location": "Colombo HQ",
+    "on_call": false
+  },
+  {
+    "employee_id": "E014",
+    "name": "Lucas Moreau",
+    "email": "lucas.moreau@commbank.example",
+    "department": "hr",
+    "title": "HR Systems Analyst",
+    "manager_id": "E013",
+    "location": "Colombo HQ",
+    "on_call": false
+  },
+  {
+    "employee_id": "E015",
+    "name": "Anjali Bandara",
+    "email": "anjali.bandara@commbank.example",
+    "department": "risk",
+    "title": "Chief Risk Officer",
+    "manager_id": null,
+    "location": "Colombo HQ",
+    "on_call": false
+  },
+  {
+    "employee_id": "E016",
+    "name": "Thomas Whitfield",
+    "email": "thomas.whitfield@commbank.example",
+    "department": "risk",
+    "title": "Operational Risk Manager",
+    "manager_id": "E015",
+    "location": "Colombo HQ",
+    "on_call": false
+  },
+  {
+    "employee_id": "E017",
+    "name": "Ishara Rathnayake",
+    "email": "ishara.rathnayake@commbank.example",
+    "department": "retail-banking",
+    "title": "Head of Retail Digital",
+    "manager_id": null,
+    "location": "Colombo HQ",
+    "on_call": false
+  },
+  {
+    "employee_id": "E018",
+    "name": "Kevin Adeyemi",
+    "email": "kevin.adeyemi@commbank.example",
+    "department": "retail-banking",
+    "title": "Mobile Engineering Lead",
+    "manager_id": "E017",
+    "location": "Galle",
+    "on_call": true
+  },
+  {
+    "employee_id": "E019",
+    "name": "Nadeesha Silva",
+    "email": "nadeesha.silva@commbank.example",
+    "department": "payments",
+    "title": "Product Manager Payments",
+    "manager_id": "E002",
+    "location": "Colombo HQ",
+    "on_call": false
+  },
+  {
+    "employee_id": "E020",
+    "name": "Yusuf Karim",
+    "email": "yusuf.karim@commbank.example",
+    "department": "data",
+    "title": "Head of Data",
+    "manager_id": "E001",
+    "location": "Colombo HQ",
+    "on_call": false
+  },
+  {
+    "employee_id": "E021",
+    "name": "Sachini Herath",
+    "email": "sachini.herath@commbank.example",
+    "department": "data",
+    "title": "Data Engineer",
+    "manager_id": "E020",
+    "location": "Kandy",
+    "on_call": true
+  },
+  {
+    "employee_id": "E022",
+    "name": "Elena Petrova",
+    "email": "elena.petrova@commbank.example",
+    "department": "platform",
+    "title": "Incident Manager",
+    "manager_id": "E006",
+    "location": "Colombo HQ",
+    "on_call": false
+  },
+  {
+    "employee_id": "E023",
+    "name": "Malith Wickramasinghe",
+    "email": "malith.wickramasinghe@commbank.example",
+    "department": "payments",
+    "title": "Payments Engineer",
+    "manager_id": "E002",
+    "location": "Colombo HQ",
+    "on_call": false
+  },
+  {
+    "employee_id": "E024",
+    "name": "Grace Mwangi",
+    "email": "grace.mwangi@commbank.example",
+    "department": "risk",
+    "title": "Fraud Product Manager",
+    "manager_id": "E015",
+    "location": "Remote",
+    "on_call": false
+  },
+  {
+    "employee_id": "E025",
+    "name": "Pradeep Kumar",
+    "email": "pradeep.kumar@commbank.example",
+    "department": "retail-banking",
+    "title": "Branch Systems Engineer",
+    "manager_id": "E017",
+    "location": "Kandy",
+    "on_call": false
+  }
+]
