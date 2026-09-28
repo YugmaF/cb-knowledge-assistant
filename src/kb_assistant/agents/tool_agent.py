@@ -118,8 +118,15 @@ async def execute_tools(state: AgentState, runtime: Runtime[RunContext]) -> dict
             evidence = merge_evidence(evidence, _search_evidence(result.data))
 
     datasets = {k: v for k, v in tool_ctx.datasets.items() if _small(v)}
+    # A dependency outage is reported as degraded service, so the answer says the source was down
+    # instead of implying the information does not exist.
+    degraded = list(state.get("degraded", []))
+    for r in results:
+        if r.get("error") in ("MCPUnavailableError", "timeout", "ToolTimeoutError"):
+            degraded.append(f"tools: {r['tool']} unavailable ({r['error']})")
     return {"tool_messages": list(state.get("tool_messages", [])) + messages, "pending_tool_calls": [],
-            "tool_results": results, "datasets": datasets, "approval": None, "evidence": evidence}
+            "tool_results": results, "datasets": datasets, "approval": None, "evidence": evidence,
+            "degraded": sorted(set(degraded))}
 
 
 def _search_evidence(data: dict[str, Any]) -> list[dict[str, Any]]:

@@ -130,12 +130,26 @@ async def validator(state: AgentState, runtime: Runtime[RunContext]) -> dict[str
 
     if result["ok"] or attempts > settings.response_max_validation_retries:
         answer = result["text"] if result["ok"] else _finalize_failed(result["text"], result["issues"], settings.brand_name)
+        answer += _service_notice(state.get("degraded", []))
         citations = _citation_details(state, result["citations"])
         return {"answer": answer, "citations": citations, "validation_attempts": attempts,
                 "validation": {k: result[k] for k in ("ok", "issues", "warnings", "redactions")},
                 "messages": [AIMessage(content=answer)]}
     return {"validation_attempts": attempts, "validation_feedback": "\n".join(f"- {i}" for i in result["issues"]),
             "validation": {k: result[k] for k in ("ok", "issues", "warnings", "redactions")}}
+
+
+def _service_notice(degraded: list[str]) -> str:
+    """Say which sources were down. Asking the model to mention it is unreliable (it often answers
+    "not found in the documents" instead), so the notice is added in code."""
+    if not degraded:
+        return ""
+    names = {"retrieval": "semantic search", "supervisor": "AI routing", "response": "AI answer writing",
+             "research": "research synthesis"}
+    sources = sorted({d.split(":", 1)[1].split(" unavailable")[0].strip() if d.startswith("tools:")
+                      else names.get(d.split(":", 1)[0], d.split(":", 1)[0]) for d in degraded})
+    return ("\n\n> **Service notice:** some sources were unavailable while answering ("
+            + "; ".join(sources) + "), so this answer may be incomplete.")
 
 
 def route_after_validation(state: AgentState) -> str:

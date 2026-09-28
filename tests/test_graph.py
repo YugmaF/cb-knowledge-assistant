@@ -224,3 +224,15 @@ async def test_episodic_memory_recalls_across_sessions_for_same_user_only(servic
 def test_evidence_helper_reads_document_ids():
     from langchain_core.messages import HumanMessage
     assert evidence_ids([HumanMessage(content='<document id="A#b" title="t">x</document>')]) == ["A#b"]
+
+
+async def test_mcp_outage_is_reported_as_degraded(services, fake_llm, analyst):
+    faults.set_faults({"mcp"})
+    fake_llm.script = {
+        "supervisor": supervisor_says("enterprise_lookup", ["tools"]),
+        "tool_agent": _tool_agent_script([[("service_catalog", {"service_id": "payments-ledger"})]]),
+        "response": lambda m: "The service catalog is unavailable right now [tool:service_catalog].",
+    }
+    events, _, _ = await run(services, analyst, "Who owns payments-ledger?")
+    assert any("service_catalog unavailable" in d for d in events[-1]["explanation"]["degraded"])
+    assert "Service notice" in events[-1]["answer"] and "service_catalog" in events[-1]["answer"]
