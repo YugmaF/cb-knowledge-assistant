@@ -1,4 +1,5 @@
 # docker compose up --build        UI: http://localhost:8501   API: http://localhost:8000/docs
+# Ports clash with another app? API_PORT=8010 UI_PORT=8511 docker compose up --build
 services:
   mcp:
     build: .
@@ -7,7 +8,7 @@ services:
       MCP_HOST: 0.0.0.0
       MCP_PORT: "8765"
       MCP_ALLOWED_HOSTS: "mcp:8765,localhost:8765,127.0.0.1:8765"
-    ports: ["8765:8765"]
+    ports: ["${MCP_PORT_HOST:-8765}:8765"]
     restart: unless-stopped
 
   api:
@@ -24,7 +25,7 @@ services:
       - index:/app/data/index
       - state:/app/data/state
       - models:/cache
-    ports: ["8000:8000"]
+    ports: ["${API_PORT:-8000}:8000"]
     depends_on: [mcp]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
@@ -39,7 +40,7 @@ services:
     command: streamlit run src/kb_assistant/ui/streamlit_app.py --server.address 0.0.0.0 --server.port 8501 --server.headless true
     environment:
       API_URL: http://api:8000
-    ports: ["8501:8501"]
+    ports: ["${UI_PORT:-8501}:8501"]
     depends_on:
       api:
         condition: service_healthy
