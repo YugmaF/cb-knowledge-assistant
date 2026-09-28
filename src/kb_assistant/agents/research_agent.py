@@ -346,8 +346,13 @@ async def research_agent(state: AgentState, runtime: Runtime[RunContext]) -> dic
           "relevant": aggregates["relevant"], "sub_agent_calls": analyzer.sub_agent_calls})
 
     evidence = list(state.get("evidence", []))
-    evidence = merge_evidence(evidence, [c for d in docs for c in d["chunks"]], limit=80)
+    # Every chunk a finding cites must survive into the evidence, or the validator would reject a
+    # correct citation as "not retrieved". Cited chunks go first; the rest fill up to the cap.
     relevant_findings = [f.model_dump() for f in findings if f.relevant]
+    all_chunks = {c["chunk_id"]: c for d in docs for c in d["chunks"]}
+    cited = [all_chunks[f["evidence_chunk_id"]] for f in relevant_findings if f["evidence_chunk_id"] in all_chunks]
+    evidence = merge_evidence(evidence, cited, limit=200)
+    evidence = merge_evidence(evidence, list(all_chunks.values()), limit=max(120, len(evidence)))
 
     report: ResearchReport | None = None
     try:

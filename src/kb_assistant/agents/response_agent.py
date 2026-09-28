@@ -32,9 +32,11 @@ def _research_block(research: dict[str, Any]) -> str:
     report = research.get("report")
     agg = research.get("aggregates", {})
     counts = {k: v["count"] for k, v in agg.get("by_category", {}).items()}
+    # The chunk id to cite for each analysed document, so the answer cites evidence, not "the report".
+    cite_as = {f["doc_id"]: f["evidence_chunk_id"] for f in research.get("findings", [])}
     body = {
         "documents_analysed": research.get("documents_analysed"), "counts_by_root_cause (computed by code)": counts,
-        "report": report,
+        "report": report, "cite_as (doc_id -> chunk id to put in brackets)": cite_as,
     }
     return "<research_report>\n" + json.dumps(body, indent=1)[:8000] + "\n</research_report>"
 
@@ -62,7 +64,8 @@ def build_messages(state: AgentState, ctx: RunContext) -> list:
             recalled="; ".join(r["question"] for r in recalled) or "none",
             intent=decision.get("intent", "unknown"),
             degraded="; ".join(state.get("degraded", [])) or "none",
-            evidence=format_evidence(state.get("evidence", [])[:14]),
+            # A research turn carries its findings in the report block, so fewer raw chunks are needed.
+            evidence=format_evidence(state.get("evidence", [])[:8 if state.get("research") else 14]),
             research=_research_block(state.get("research", {})),
             tools=_tools_block(state.get("tool_results", [])),
             feedback=(f"IMPORTANT - your previous draft was rejected by the validator:\n{feedback}\n"

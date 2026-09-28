@@ -116,6 +116,11 @@ class ResearchReport(BaseModel):
     recurring_root_causes: list[RecurringCause] = Field(default_factory=list)
     recommendations: list[str] = Field(default_factory=list, max_length=6)
 
+    @field_validator("recommendations", mode="before")
+    @classmethod
+    def _clip_recommendations(cls, v):
+        return (v or [])[:6]  # a seventh recommendation is verbose, not wrong: no retry for it
+
 
 # --- graph state ----------------------------------------------------------------------------------
 
