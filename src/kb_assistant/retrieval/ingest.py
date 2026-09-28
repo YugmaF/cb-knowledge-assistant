@@ -83,12 +83,50 @@ async def ingest(settings: Settings) -> dict:
     return manifest
 
 
+async def index_status(settings: Settings) -> list[str]:
+    """What is missing before the app can serve. Empty list = ready.
+
+    Checks the local files (catalog, BM25 statistics, fallback store) and, when a Pinecone key is
+    set, that the configured index exists and holds as many vectors as the local store."""
+    problems: list[str] = []
+    manifest_path = settings.index_dir / "manifest.json"
+    required = ("manifest.json", "local_store.jsonl", "bm25.json", "catalog.json")
+    missing = [f for f in required if not (settings.index_dir / f).exists()]
+    if missing:
+        problems.append(f"local index files missing in {settings.index_dir}: {', '.join(missing)}")
+    if settings.use_pinecone:
+        from pinecone import AsyncPinecone
+
+        expected = json.loads(manifest_path.read_text())["chunks"] if manifest_path.exists() else None
+        pc = AsyncPinecone(api_key=settings.pinecone_api_key)
+        try:
+            if not await pc.has_index(settings.pinecone_index):
+                problems.append(f"Pinecone index '{settings.pinecone_index}' does not exist")
+            else:
+                index = await pc.index(settings.pinecone_index)
+                count = (await index.describe_index_stats()).total_vector_count
+                if not count:
+                    problems.append(f"Pinecone index '{settings.pinecone_index}' is empty")
+                elif expected is not None and count != expected:
+                    problems.append(f"Pinecone index '{settings.pinecone_index}' has {count} vectors, "
+                                    f"local index has {expected}")
+        finally:
+            await pc.close()
+    return problems
+
+
 def main() -> None:
     settings = get_settings()
     configure_logging(settings)
-    if "--if-missing" in sys.argv and (settings.index_dir / "manifest.json").exists():
-        print(f"index already present in {settings.index_dir}, skipping ingestion")
-        return
+    if "--check" in sys.argv or "--if-missing" in sys.argv:
+        problems = asyncio.run(index_status(settings))
+        target = f"Pinecone '{settings.pinecone_index}'" if settings.use_pinecone else "local store only"
+        if not problems:
+            print(f"index ready ({target}); nothing to build")
+            return
+        print("index needs building:\n  - " + "\n  - ".join(problems))
+        if "--check" in sys.argv:
+            sys.exit(1)
     print(json.dumps(asyncio.run(ingest(settings)), indent=2))
 
 

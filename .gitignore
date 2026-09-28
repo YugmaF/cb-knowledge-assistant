@@ -8,3 +8,4 @@ data/index/
 data/state/
 *.log
 .DS_Store
+logs/

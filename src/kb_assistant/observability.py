@@ -19,7 +19,7 @@ def configure_logging(settings: Settings) -> None:
     level = getattr(logging, settings.log_level.upper(), logging.INFO)
     logging.basicConfig(stream=sys.stdout, level=level, format="%(message)s")
     # Third-party libraries log at INFO on every HTTP call; keep them quiet.
-    for noisy in ("httpx", "httpcore", "openai", "urllib3", "mcp"):
+    for noisy in ("httpx", "httpcore", "openai", "urllib3", "mcp", "pinecone"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
     renderer = (

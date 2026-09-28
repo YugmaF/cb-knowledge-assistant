@@ -32,16 +32,41 @@ handling) and [docs/SECURITY.md](docs/SECURITY.md) (threat model and controls).
 
 ## Quick start
 
-**Local (uv, Python 3.13)**
+**One command: `run.sh`** (needs [uv](https://docs.astral.sh/uv/); installs dependencies on first run)
 
 ```bash
-cp .env.example .env                  # add OPENROUTER_API_KEY (+ LANGSMITH_API_KEY, optional PINECONE_API_KEY)
-uv sync
-uv run python -m kb_assistant.retrieval.ingest          # builds data/index (downloads bge-small + reranker once)
+cp .env.example .env         # add OPENROUTER_API_KEY, PINECONE_API_KEY, LANGSMITH_API_KEY
+./run.sh                     # MCP :8765 + API :8010 + UI :8511  →  open http://127.0.0.1:8511
+```
 
-uv run python -m kb_assistant.mcp_server.server          # terminal 1: MCP server  :8765
-uv run uvicorn kb_assistant.api.main:app --port 8000     # terminal 2: API         :8000/docs
-uv run streamlit run src/kb_assistant/ui/streamlit_app.py  # terminal 3: UI       :8501
+The index is built only when it is needed. `run.sh` first runs `ingest --check`, which verifies:
+- the local index files exist;
+- with a Pinecone key, that the Pinecone index exists and holds as many vectors as the local store.
+
+It builds only if one of these checks fails.
+
+| Command | What it does |
+|---|---|
+| `./run.sh` | start everything; build the index first only if the check fails |
+| `./run.sh --build` | force a rebuild (after editing `data/corpus`), then start |
+| `./run.sh build` / `./run.sh check` | only build / only report index status |
+| `./run.sh ask --user anil "…"` | one question in the terminal, printing the full activity stream |
+| `./run.sh test` / `./run.sh eval` | offline tests / retrieval eval |
+| `--env-file PATH` | read keys from another file instead of `./.env` |
+
+- **Ports:** override with `API_PORT`, `UI_PORT` and `MCP_PORT`.
+- **Index and trace project:** set with `KB_PINECONE_INDEX` (default `cb-knowledge`) and `KB_LANGSMITH_PROJECT`. These are applied *after* the env file is loaded, so a borrowed env file can never point the app at another project's index.
+- **Without keys:** it runs on the local store, with no LLM answers (extractive fallback) and no tracing.
+- **Logs:** written to `logs/`. Ctrl+C stops all three services.
+
+**Manual start** (what `run.sh` does)
+
+```bash
+uv sync
+uv run python -m kb_assistant.retrieval.ingest --if-missing     # build only when needed
+uv run python -m kb_assistant.mcp_server.server                 # terminal 1: MCP  :8765
+uv run uvicorn kb_assistant.api.main:app --port 8010            # terminal 2: API  :8010/docs
+API_URL=http://127.0.0.1:8010 uv run streamlit run src/kb_assistant/ui/streamlit_app.py --server.port 8511
 ```
 
 **Docker Compose**
@@ -59,7 +84,7 @@ uv run python scripts/ask.py --user anil "Summarize all outage reports related t
 **Tests and evals** (offline, no API keys):
 
 ```bash
-uv run pytest -q                       # 70 tests: guards, RBAC, sandbox, retrieval, graph end-to-end, API
+uv run pytest -q                       # 71 tests: guards, RBAC, sandbox, retrieval, graph end-to-end, API
 uv run python scripts/eval_retrieval.py  # recall@5 + access-control leak check on data/eval/golden.jsonl
 uv run python scripts/eval_research.py   # RLM vs ground truth (needs an LLM key, ~$0.02)
 ```
@@ -266,7 +291,7 @@ Two failures found this way were fixed in code, not in the prompt:
 | RLM research (24 documents) | 11–16 | ~20–30k / 5–6k | ~$0.015–0.02 | 40–75 s |
 | Blocked injection | 0 | 0 | $0 | <10 ms |
 
-**Tests**: 70 passing offline in ~6 s. Each guard has a test that forces the failure it exists to
+**Tests**: 71 passing offline in ~6 s. Each guard has a test that forces the failure it exists to
 catch. As a check on the tests themselves, I disabled the RBAC check, then the access filter; each
 time a test failed.
 
