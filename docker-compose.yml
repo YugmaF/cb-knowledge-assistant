@@ -1,0 +1,51 @@
+# docker compose up --build        UI: http://localhost:8501   API: http://localhost:8000/docs
+services:
+  mcp:
+    build: .
+    command: python -m kb_assistant.mcp_server.server
+    environment:
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: "8765"
+      MCP_ALLOWED_HOSTS: "mcp:8765,localhost:8765,127.0.0.1:8765"
+    ports: ["8765:8765"]
+    restart: unless-stopped
+
+  api:
+    build: .
+    # Build the index on first start (downloads the embedding + rerank models into the cache volume).
+    command: sh -c "python -m kb_assistant.retrieval.ingest --if-missing && uvicorn kb_assistant.api.main:app --host 0.0.0.0 --port 8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      MCP_URL: http://mcp:8765/mcp
+      LOG_JSON: "true"
+    volumes:
+      - index:/app/data/index
+      - state:/app/data/state
+      - models:/cache
+    ports: ["8000:8000"]
+    depends_on: [mcp]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 120s
+    restart: unless-stopped
+
+  ui:
+    build: .
+    command: streamlit run src/kb_assistant/ui/streamlit_app.py --server.address 0.0.0.0 --server.port 8501 --server.headless true
+    environment:
+      API_URL: http://api:8000
+    ports: ["8501:8501"]
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  index:
+  state:
+  models:
