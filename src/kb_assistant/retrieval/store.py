@@ -237,6 +237,20 @@ class PineconeVectorStore:
                 name=self._index_name, dimension=self._dim, metric="dotproduct",
                 spec=ServerlessSpec(cloud=self._cloud, region=self._region),
             )
+        # A new serverless index has no host until it is Ready; data-plane calls fail before that.
+        for _ in range(60):
+            description = await self._pc.describe_index(self._index_name)
+            status = description.status
+            ready = status.get("ready") if isinstance(status, dict) else getattr(status, "ready", False)
+            if ready:
+                break
+            await asyncio.sleep(2)
+        else:
+            raise VectorStoreError(f"Pinecone index {self._index_name} did not become ready")
+        if description.dimension != self._dim or description.metric != "dotproduct":
+            raise VectorStoreError(
+                f"index {self._index_name} is {description.dimension}d/{description.metric}; "
+                f"hybrid search needs {self._dim}d/dotproduct")
 
     async def _call(self, coro_factory):
         if faults.is_active("vectordb"):
