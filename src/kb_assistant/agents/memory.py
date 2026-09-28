@@ -26,6 +26,8 @@ import asyncio
 import json
 import sqlite3
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -70,8 +72,15 @@ class MemoryStore:
         with self._connect() as db:
             db.executescript(_SCHEMA)
 
-    def _connect(self) -> sqlite3.Connection:
-        return sqlite3.connect(self._path, timeout=10)
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        # sqlite3's own context manager commits but never closes; this one does both.
+        db = sqlite3.connect(self._path, timeout=10)
+        try:
+            with db:
+                yield db
+        finally:
+            db.close()
 
     async def _run(self, fn, *args):
         return await asyncio.to_thread(fn, *args)
