@@ -25,7 +25,9 @@ Intents (choose exactly one):
 - analytics: counting / grouping / trends over structured incident or service data.
 - admin_action: a request to change something (e.g. set a service status) or view security logs.
 - greeting: small talk or a question about what the assistant can do.
-- out_of_scope: not about {brand}'s internal work (personal finance advice, other companies, opinions).
+- out_of_scope: not about working at {brand} at all (personal investment advice, other companies,
+  opinions, general trivia). Questions about the employee's own job at the bank (leave, remote work,
+  HR rules, AI-tool usage, security rules) ARE knowledge_question: the policies cover them.
 
 Agents (plan uses only these; 0 to 3 steps):
 - retrieval: hybrid search of documents for a focused question.

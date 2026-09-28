@@ -236,3 +236,18 @@ async def test_mcp_outage_is_reported_as_degraded(services, fake_llm, analyst):
     events, _, _ = await run(services, analyst, "Who owns payments-ledger?")
     assert any("service_catalog unavailable" in d for d in events[-1]["explanation"]["degraded"])
     assert "Service notice" in events[-1]["answer"] and "service_catalog" in events[-1]["answer"]
+
+
+async def test_out_of_scope_is_overridden_when_documents_answer(services, fake_llm, viewer):
+    async def strong_rerank(query, hits):
+        for h in hits:
+            h.rerank_score = 9.0
+        return hits
+
+    services.retriever.reranker.rerank = strong_rerank
+    fake_llm.script = {"supervisor": supervisor_says("out_of_scope", []), "response": cite_first_document}
+    events, _, _ = await run(services, viewer, "How many days per week can I work remotely?")
+    sup = load_events(events, "supervisor")[0]
+    assert sup["intent"] == "knowledge_question" and [s["agent"] for s in sup["plan"]] == ["retrieval"]
+    assert any("overrode out_of_scope" in n for n in sup["policy_notes"])
+    assert events[-1]["citations"]

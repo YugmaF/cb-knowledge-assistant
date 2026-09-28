@@ -114,13 +114,36 @@ async def supervisor(state: AgentState, runtime: Runtime[RunContext]) -> dict[st
         decision = heuristic_decision(state["question"], principal)
         degraded.append("supervisor: LLM unavailable, used keyword routing")
 
+    if decision.intent == "out_of_scope":
+        notes_oos = await _override_if_documented(decision, services, principal)
+    else:
+        notes_oos = []
     decision, notes = enforce_plan_policy(decision, principal)
-    notes += enforce_filter_policy(decision, state["question"])
+    notes += notes_oos + enforce_filter_policy(decision, state["question"])
     emit({"type": "supervisor", "intent": decision.intent, "standalone_query": decision.standalone_query,
           "plan": [s.model_dump() for s in decision.plan], "filters": decision.filters.model_dump(exclude_none=True),
           "reasoning": decision.reasoning, "policy_notes": notes})
     return {"decision": decision.model_dump(), "plan": [s.model_dump() for s in decision.plan],
             "plan_index": 0, "degraded": degraded}
+
+
+# Cross-encoder logit above which a document clearly answers the question (ms-marco-MiniLM scale).
+STRONG_MATCH = 3.0
+
+
+async def _override_if_documented(decision: SupervisorDecision, services, principal: Principal) -> list[str]:
+    """Never refuse a question the documents answer. An LLM called "How many days can I work remotely?"
+    out of scope in testing; one cheap search (no LLM) is the safety net before refusing."""
+    try:
+        result = await services.retriever.search(decision.standalone_query, principal, top_k=1)
+    except Exception:  # the check is best-effort; the refusal stands if search fails
+        return []
+    top = result.hits[0] if result.hits else None
+    if top is None or top.rerank_score is None or top.rerank_score < STRONG_MATCH:
+        return []
+    decision.intent = "knowledge_question"
+    decision.plan = [PlanStep(agent="retrieval", task=decision.standalone_query)]
+    return [f"overrode out_of_scope: {top.chunk_id} answers it (rerank {top.rerank_score:.1f})"]
 
 
 async def dispatch(state: AgentState) -> dict[str, Any]:
