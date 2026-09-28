@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import uuid
 from datetime import date, timedelta
 
@@ -23,6 +24,9 @@ from kb_assistant.config import PROJECT_ROOT, get_settings
 from kb_assistant.container import build_services
 from kb_assistant.observability import configure_logging
 from kb_assistant.security.rbac import Principal
+
+# Eval runs go to their own LangSmith project so they don't mix with demo traces.
+os.environ["LANGSMITH_PROJECT"] = os.environ.get("LANGSMITH_PROJECT", "cb-knowledge-assistant") + "-evals"
 
 QUESTION = ("Summarize all outage reports related to payment failures during the last year and identify "
             "recurring root causes.")

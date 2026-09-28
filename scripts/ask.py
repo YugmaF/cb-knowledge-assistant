@@ -2,6 +2,7 @@
 
     uv run python scripts/ask.py --user anil "What are the recurring root causes of payment failures in the last year?"
     uv run python scripts/ask.py --user amal --approve "Set branch-teller status to operational, note: fixed"
+    uv run python scripts/ask.py --user anil --faults vectordb,mcp "Who is on call for payments-ledger?"
 
 Useful for debugging without the API/UI, and for recording what each agent did.
 """
@@ -15,6 +16,7 @@ import uuid
 
 from langgraph.checkpoint.memory import InMemorySaver
 
+from kb_assistant import faults
 from kb_assistant.agents.graph import build_graph
 from kb_assistant.api.runner import stream_turn
 from kb_assistant.config import get_settings
@@ -52,8 +54,11 @@ async def main() -> None:
     parser.add_argument("questions", nargs="+")
     parser.add_argument("--user", default="anil", choices=sorted(USERS))
     parser.add_argument("--approve", action="store_true", help="auto-approve admin actions")
+    parser.add_argument("--faults", default="", help="comma-separated faults to inject, e.g. vectordb,mcp")
     args = parser.parse_args()
 
+    if args.faults:
+        faults.set_faults(set(args.faults.split(",")))
     settings = get_settings()
     configure_logging(settings)
     configure_tracing(settings)

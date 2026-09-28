@@ -49,6 +49,10 @@ from kb_assistant.agents.tool_agent import approval_gate, execute_tools, route_a
 from kb_assistant.agents.validator import route_after_validation, validator
 
 
+def route_after_guard(state: AgentState) -> str:
+    return "update_memory" if state.get("blocked") else "load_memory"
+
+
 def build_graph(checkpointer=None):
     g = StateGraph(AgentState, context_schema=RunContext)
     g.add_node("input_guard", input_guard)
@@ -65,8 +69,7 @@ def build_graph(checkpointer=None):
     g.add_node("update_memory", update_memory)
 
     g.add_edge(START, "input_guard")
-    g.add_conditional_edges("input_guard", lambda s: "update_memory" if s.get("blocked") else "load_memory",
-                            ["update_memory", "load_memory"])
+    g.add_conditional_edges("input_guard", route_after_guard, ["update_memory", "load_memory"])
     g.add_edge("load_memory", "supervisor")
     g.add_edge("supervisor", "dispatch")
     g.add_conditional_edges("dispatch", route_from_dispatch,

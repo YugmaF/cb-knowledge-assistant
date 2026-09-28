@@ -12,7 +12,12 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sys
+
+# Hundreds of bare retrieval calls would bury the demo's chat traces; trace evals only on request.
+if "--trace" not in sys.argv:
+    os.environ["LANGSMITH_TRACING"] = "false"
 
 from kb_assistant.config import PROJECT_ROOT, get_settings
 from kb_assistant.container import build_services
@@ -27,6 +32,7 @@ async def main() -> int:
     parser.add_argument("--k", type=int, default=5)
     parser.add_argument("--alpha", type=float, default=None)
     parser.add_argument("--no-rerank", action="store_true")
+    parser.add_argument("--trace", action="store_true", help="send the eval's retrieval calls to LangSmith")
     args = parser.parse_args()
 
     settings = get_settings()
