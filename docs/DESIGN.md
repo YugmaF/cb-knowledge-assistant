@@ -170,14 +170,19 @@ LangSmith (`rlm_sub_agent` spans).
 | LLM returns HTTP 200 with empty body | `_record_usage` checks content | treated as transport failure → fallback | code path in `llm.py` |
 | All LLMs down | `LLMUnavailableError` | supervisor → keyword router; response → extractive answer with citations; research → code aggregates only | `test_llm_outage_degrades…` |
 | Invalid JSON / schema from LLM | Pydantic | error fed back as a user message, ≤3 attempts | live runs (null filters) |
-| Vector DB down | `VectorStoreError` (per namespace) | partial results if some namespaces answer; else local BM25 keyword index; marked degraded | `test_vector_store_failure…`, `test_vector_db_outage…` |
+| Vector DB down | `VectorStoreError` (per namespace) | partial results if some namespaces answer; else local BM25 keyword index; marked degraded | `test_vector_store_failure…`, `test_vector_db_outage…`; live: a real Pinecone 401 falls back to keyword search |
 | MCP down | `MCPUnavailableError` | tool result "ERROR …" to the agent; circuit opens after 3 failures (fail fast for 30 s) | `test_mcp_failure_opens_circuit` |
 | Tool timeout | `asyncio.timeout` | "TIMEOUT …" tool result; agent continues | `test_tool_timeout…` |
 | Invalid request | FastAPI/Pydantic | 422 with a readable message and `request_id` | `test_requests_without_token…` |
 | Rate limited | token bucket | 429 + `Retry-After`; UI shows the wait | `test_rate_limit…` |
 | Unexpected exception in a turn | runner's last-resort handler | stream ends with an `error` event, not a broken connection | `runner.py` |
 
-Every row except the empty-body case can be forced live from the admin sidebar (`POST /admin/faults`).
+Every row except the empty-body case can be forced live from the admin sidebar (`POST /admin/faults`)
+or from the terminal (`scripts/ask.py --faults vectordb,mcp …`).
+
+**The answer always says what was down.** In testing, the model was told about the outage in its
+prompt but still wrote "not found in the documents". The validator now appends a service notice
+from the `degraded` list, so the user can tell "the source is down" from "the answer doesn't exist".
 
 ## Observability
 
@@ -189,5 +194,10 @@ Every row except the empty-body case can be forced live from the admin sidebar (
 - **Structured logs**: JSON lines with `request_id`, `user`, `role`, `thread_id` bound once per request.
   Includes `llm_call` (stage, model, tokens, cost, latency), `tool_executed`, `security_event`,
   `turn_done`.
+- **Verified live**: traces arrive with the full span tree. Searches issued from the RLM sandbox
+  thread are still children of the calling span (asyncio.to_thread copies contextvars, and
+  run_coroutine_threadsafe inherits them). Feedback posted to `/feedback` appears on the run as
+  `user_rating`. Eval scripts do not trace by default (`--trace` to opt in), so the demo project
+  contains only conversations.
 - **Activity stream**: the same events go to the UI over SSE, so an evaluator sees the agent's
   internals without opening LangSmith.

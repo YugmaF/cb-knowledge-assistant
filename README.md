@@ -59,7 +59,7 @@ uv run python scripts/ask.py --user anil "Summarize all outage reports related t
 **Tests and evals** (offline, no API keys):
 
 ```bash
-uv run pytest -q                       # 69 tests: guards, RBAC, sandbox, retrieval, graph end-to-end, API
+uv run pytest -q                       # 70 tests: guards, RBAC, sandbox, retrieval, graph end-to-end, API
 uv run python scripts/eval_retrieval.py  # recall@5 + access-control leak check on data/eval/golden.jsonl
 uv run python scripts/eval_research.py   # RLM vs ground truth (needs an LLM key, ~$0.02)
 ```
@@ -184,11 +184,35 @@ in LangSmith.
 | 12 | any | Rapid-fire 6 messages as vera | 429 with `Retry-After`, friendly message in the UI |
 | 13 | any | 👍 / 👎 on an answer | Stored, attached to the LangSmith run; `scripts/export_feedback.py` turns 👎 into eval candidates |
 
+### Inspecting traces in LangSmith
+
+With `LANGSMITH_TRACING=true` and `LANGSMITH_API_KEY` set, each turn is one trace in the project
+`cb-knowledge-assistant`:
+
+- Evals go to `cb-knowledge-assistant-evals`, or are not traced at all, so demo traces stay clean.
+- Traces are named `chat_turn` and tagged `role:<role>`, with `user_id`, `role` and `thread_id` in the metadata.
+- The trace id equals the `run_id` shown under each answer, and feedback (👍/👎) is attached to it.
+
+What one trace contains. Example: the RLM question, which produced 52 spans:
+
+| Span | Type | Shows |
+|---|---|---|
+| `input_guard`, `load_memory`, `supervisor`, `dispatch`, `*_agent`, `validator`, `update_memory` | chain | every agent transition (LangGraph nodes) |
+| `ChatOpenAI` | llm | prompt, output, tokens, model: one per LLM call (16 in the RLM trace) |
+| `hybrid_search`, `fetch_sections` | retriever | query, filter, namespaces, hits with scores |
+| `rlm_sub_agent` | chain | one per recursive sub-agent call, including split batches (14 in the RLM trace) |
+| `execute_tool`, `mcp_call` | tool | tool name, arguments, result or error |
+
+To give an evaluator a trace without a LangSmith seat, use **Share** on the trace in the LangSmith UI;
+it creates a public read-only link.
+
 ---
 
 ## Results
 
-Measured on this corpus (58 documents → 378 section chunks) on 2026-09-28.
+Measured on this corpus (58 documents → 378 section chunks) on 2026-09-28, against a live
+Pinecone serverless index (`cb-knowledge`, aws/us-east-1, 384-d dotproduct, 6 namespaces), with
+every turn traced in LangSmith.
 
 **Retrieval recall@5** (`scripts/eval_retrieval.py`, 23 golden questions + 1 access-control negative)
 
@@ -205,22 +229,33 @@ leaks: 0 in every configuration. The one low-recall standard question is the mul
 "recurring root causes" question: top-5 retrieval cannot hold 14 incidents, which is why it is
 routed to the RLM research agent instead. The set is small: treat these as directional.
 
+**Pinecone parity.** All four configurations give identical numbers on live Pinecone and on the
+in-process local store (0.919 / 0.872 / 0.835 / 0.829), which confirms that the two backends compute
+the same hybrid score. That matters because the local store is the fallback when Pinecone is down.
+
 **RLM research accuracy** (`scripts/eval_research.py`). The MCP incident records are an answer key
 for the headline question, *"summarize all payment-failure outages in the last year and identify
-recurring root causes"*:
+recurring root causes"*. Two runs are shown, because LLM output varies between identical runs:
 
-| Metric | Result |
-|---|---|
-| Recall: in-window payment incidents found | 15 / 16 (missed INC-2025-018, a Kafka lag owned by platform) |
-| Precision: counted incidents that are payment-related and in the window | 15 / 15 |
-| Root-cause category correct | 14 / 15 (INC-2026-009 labelled `capacity`, truth `switch_timeout`) |
-| Cost | 16 LLM calls, ~$0.02, ~60 s |
+| Metric | Run 1 (local store) | Run 2 (Pinecone, after fixes) |
+|---|---|---|
+| Recall: in-window payment incidents found | 15 / 16 | **16 / 16** |
+| Precision: counted incidents that are payment-related and in the window | 15 / 15 | **16 / 16** |
+| Root-cause category correct | 14 / 15 | 14 / 16 |
+| Cost | 16 LLM calls, ~$0.02 | 11 LLM calls, ~$0.018 |
+
+The remaining misclassifications are borderline, e.g. a NationalSwitch timeout labelled
+`third_party_outage`.
 
 Two failures found this way were fixed in code, not in the prompt:
 - **Supervisor department filter.** The supervisor added `department=payments` for "payment
   failures", which hid the platform-owned incidents. It is now dropped unless the user names a department.
 - **Plan widened the date range.** A retried plan widened the date range to find more documents.
   The window is now enforced after the plan runs.
+- **Valid citations rejected as hallucinated.** With 24 documents, the evidence list was capped
+  before every chunk a finding cited was in it, so the validator rejected real citations. Cited
+  chunks are now kept first, and the research report tells the response agent which chunk id to
+  cite for each document.
 
 **Cost and latency per turn**, measured through OpenRouter, rounded:
 
@@ -228,10 +263,10 @@ Two failures found this way were fixed in code, not in the prompt:
 |---|---|---|---|---|
 | Knowledge question | 2 | ~1.9k / 0.15k | ~$0.0008 | 4–7 s |
 | Tools (MCP + analysis) | 5–6 | ~8–13k / 0.5k | ~$0.0025 | 10–13 s |
-| RLM research (13–17 documents) | 12–14 | ~22–26k / 4–5k | ~$0.01 | 40–70 s |
+| RLM research (24 documents) | 11–16 | ~20–30k / 5–6k | ~$0.015–0.02 | 40–75 s |
 | Blocked injection | 0 | 0 | $0 | <10 ms |
 
-**Tests**: 69 passing offline in ~6 s. Each guard has a test that forces the failure it exists to
+**Tests**: 70 passing offline in ~6 s. Each guard has a test that forces the failure it exists to
 catch. As a check on the tests themselves, I disabled the RBAC check, then the access filter; each
 time a test failed.
 
@@ -247,10 +282,13 @@ time a test failed.
   traceable and testable. The tool agent is the one place with an open-ended LLM loop, bounded to 5 steps.
 - **The retrieval agent has no LLM.** Query rewriting already happened in the supervisor; a second
   LLM call per search would add cost and latency for little gain. Its "agency" is a corrective retry.
-- **The local store is the default when no Pinecone key is set.** The Pinecone adapter is written
-  against the v10 async SDK, and its request shape is covered by contract tests. I did not run it
-  against a live index in this build because I had no key. Set `PINECONE_API_KEY` and re-run ingest
-  to use it; nothing else changes.
+- **Pinecone is used when `PINECONE_API_KEY` is set; otherwise the local store.** Ingest creates the
+  index (serverless, dotproduct), waits until it is ready, and upserts one namespace per document
+  type. Verified live: eval parity with the local store, real 401 and outage fallback to keyword
+  search, and the RLM's targeted section fetches.
+- **Re-ingesting is an upsert by chunk id.** Changed chunks are replaced, but a deleted document's
+  chunks stay in Pinecone until that namespace is rebuilt. A production pipeline would delete
+  stale ids per document.
 - **Namespaces are per document type, not per access level.** Access control is a metadata filter
   added by code on every query plus a post-filter. Namespaces-per-level would also work, but a role
   spanning several levels would then need several queries for every search.
