@@ -13,6 +13,7 @@
 | Tests | **148**, offline, ~5 s |
 
 Live Pinecone, 23 golden questions, re-run 2026-10-01. [Full ablation →](#results)
+
 <sub>¹ Measured 2026-09-28; root cause right on 14/16. "Last year" is relative to today, so the count drifts (15 on 2026-10-01).</sub>
 
 <picture>
