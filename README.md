@@ -23,7 +23,8 @@ guardrails, rate limiting, human approval for writes, and full activity streamin
 4. [Demo script](#demo-script)
 5. [Results](#results)
 6. [Assumptions and trade-offs](#assumptions-and-trade-offs)
-7. [What I would do next](#what-i-would-do-next)
+7. [Security review: known limitations and next steps](#security-review-known-limitations-and-next-steps)
+8. [What I would do next](#what-i-would-do-next)
 
 Deeper write-ups: [docs/DESIGN.md](docs/DESIGN.md) (agents, RAG, RLM, memory, models, failure
 handling) and [docs/SECURITY.md](docs/SECURITY.md) (threat model and controls).
@@ -87,7 +88,7 @@ uv run python scripts/ask.py --user anil "Summarize all outage reports related t
 **Tests and evals** (offline, no API keys):
 
 ```bash
-uv run pytest -q                       # 71 tests: guards, RBAC, sandbox, retrieval, graph end-to-end, API
+uv run pytest -q                       # 148 tests: guards, RBAC, MCP auth, sandbox, retrieval, graph end-to-end, API
 uv run python scripts/eval_retrieval.py  # recall@5 + access-control leak check on data/eval/golden.jsonl
 uv run python scripts/eval_research.py   # RLM vs ground truth (needs an LLM key, ~$0.02)
 ```
@@ -294,7 +295,7 @@ Two failures found this way were fixed in code, not in the prompt:
 | RLM research (24 documents) | 11–16 | ~20–30k / 5–6k | ~$0.015–0.02 | 40–75 s |
 | Blocked injection | 0 | 0 | $0 | <10 ms |
 
-**Tests**: 71 passing offline in ~6 s. Each guard has a test that forces the failure it exists to
+**Tests**: 148 passing offline in ~5 s. Each guard has a test that forces the failure it exists to
 catch. As a check on the tests themselves, I disabled the RBAC check, then the access filter; each
 time a test failed.
 
@@ -339,6 +340,36 @@ time a test failed.
 - **Synthetic data**: 58 documents, 30 incidents, 25 employees, 13 services. The incident markdown
   and the MCP incident records were generated from one source so they agree; each record carries its
   document's `access_level` (a test keeps them in sync).
+
+## Security review: known limitations and next steps
+
+I attacked my own build with adversarial probes. Eight items were fixed, each with a regression test:
+the JWT secret default; unauthenticated and published MCP; MCP records bypassing document access levels;
+input-guard false positives; look-alike-letter and paraphrase evasion; tokens streaming before
+redaction; sandbox data mutation together with the login timing oracle; and substring number grounding
+in the validator. Everything below was found and deliberately **not** fixed yet. Each line states the
+risk and the planned fix. Items marked *reproduced* were demonstrated against the running code.
+
+- **Sandbox isolation.** It is an in-process thread with no memory cap and a timeout that cannot stop it: a 40-line string-doubling loop exhausted a 2.5 GB cap in 0.7 s without touching the step budget, and a timed-out call keeps burning CPU, stalling the event loop and the shared thread pool (*reproduced*; reachable by analysts and admins through `python_analysis`). Fix: run it in a subprocess with CPU and memory limits and kill it on timeout.
+- **Approvals.** Two concurrent resumes of one paused turn ran the approved write twice (*reproduced*); the requester approves their own write; there is no expiry and the approver is not recorded. Fix: atomic approval claim, an idempotency key on the MCP write, and four-eyes approval (a different admin) with a TTL.
+- **Link and image guard.** The output guard only handles `http(s)` URLs and inline images; protocol-relative links, `www.` and bare domains, `ftp:`/`javascript:`/`data:`/`mailto:` links, reference-style images and `<a href>` get through (*reproduced* against the guard, not confirmed in Streamlit's renderer). Fix: a markdown-aware parser with a scheme and domain allow-list, and no images or raw HTML.
+- **Feedback.** `/feedback` accepts any `run_id` and client-supplied question and answer, so a user can plant rows in the table that becomes eval candidates (*reproduced*) and, with tracing on, attach feedback to any LangSmith run. Fix: bind feedback to the caller's own recorded runs and store the question and answer server-side.
+- **Memory as untrusted data.** Facts, the summary and recalled questions go into prompts as plain text, and LLM-extracted facts persist forever, so an injection that passes the input guard can persist in one user's memory. Fix: wrap memory in a data-only tag, screen facts before saving them, and cap and expire them.
+- **Memory after a role downgrade.** Stored answer summaries and thread checkpoints keep text from documents a demoted user can no longer read, which contradicts "a role change takes effect immediately". Fix: filter recalled interactions and summaries by the caller's current readable documents.
+- **Audit log.** Security events are an in-memory deque of 200, cover denials and flags only, and are lost on restart; successful access to confidential data and approved writes are not recorded. Fix: a persistent, append-only audit table (actor, action, document or tool, approver).
+- **Login and rate limiting.** The login limit is per IP only (one shared bucket behind a proxy, and a distributed attack is not slowed), every chat turn costs one token whether it is a 4 s lookup or a 60 s research run, and the bucket map never shrinks. Fix: per-username backoff, cost-weighted tokens (by LLM calls), and bucket eviction.
+- **Phone regex.** It is quadratic: 105 ms on 4,000 characters of `1-`, run synchronously in the validator and the stream gate (*reproduced*). Fix: a linear-time pattern or a length cap.
+- **Health and fault injection.** `/health` is unauthenticated and reveals the store name, active faults and LLM and tracing flags; the fault-injection endpoints exist in every environment. Fix: authenticated or minimal `/health`, and fault injection gated by an environment flag.
+- **Pre-filled demo credentials.** The login form pre-fills the analyst account. Fix: remove the defaults outside a dev flag.
+- **SQLite state.** Conversations, memory and feedback sit in plain SQLite with no retention policy. Fix: a retention job and encryption at rest (SQLCipher or volume encryption), then Postgres.
+- **JWT.** No `iss`, `aud` or `jti`, and no revocation or server-side logout, so a stolen token is valid for its 2-hour lifetime. Fix: add the claims and a revocation list.
+- **Validator depth.** A sentence with no citation is not checked (fabricated uncited claims pass) and a cited but unsupported claim passes (*reproduced*); the final fallback delivers a flagged answer rather than failing closed. Fix: require a citation per factual sentence, add an entailment check of claim against cited chunk, and fall back to an extractive answer.
+- **Prompt-guard classifier.** Regex cannot be complete: a paraphrase, a translation, base64, letter-spacing and role-play framing all passed the input guard in review (*reproduced*). Fix: add Llama Prompt Guard 2 (runs locally like the embedder) as a second layer, with an attack and legitimate-question eval set that tracks false positives and negatives.
+- **Ingest-time chunk scanning.** The retrieved-text sanitiser is per-query regex, and instruction-like text with no trigger words survives (*reproduced*, 2 of 3 samples). Fix: scan chunks once at ingest with the classifier and flag or quarantine them in metadata.
+- **Brand-rule scoping.** The `guarantee` rule matches any use of the word ("at-least-once delivery guarantee"), which triggers a retry and then replaces the whole answer (*reproduced*; latent, the current corpus has no hit). Fix: match only the bank's own promises and redact the sentence instead of the answer.
+- **Card, IBAN and national-ID detection.** A 16-digit card number was mislabelled `[phone redacted]` and an IBAN passed through (*reproduced*); nothing is detected on input, so pasted customer data reaches the LLM and LangSmith. Fix: Luhn-validated card numbers, IBAN and national-ID detection on input and output for every role.
+- **Canary.** It is a constant in a public repo and an exact-substring match, so an encoded or spaced copy is not detected (*reproduced*). Fix: a random per-process canary plus an n-gram overlap check against the system prompt.
+- **LangSmith content.** Traces contain full prompts, including restricted documents and any PII. Fix: an anonymizer that masks cards, emails and phones (not blanket hiding, because the evaluator needs readable traces), or self-hosted LangSmith.
 
 ## What I would do next
 

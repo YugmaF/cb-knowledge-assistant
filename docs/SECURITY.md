@@ -114,8 +114,12 @@ The bot speaks as Commercial Bank to its own staff.
 
 ## Known limits
 
-- The in-process sandbox is not a boundary against a determined attacker; production isolation is
-  a separate container with no network.
+The full list of reviewed-but-unfixed items, with the risk and planned fix for each, is in the README under
+"Security review: known limitations and next steps". The main standing ones:
+
+- The in-process sandbox is not a boundary against a determined attacker, has no memory cap, and a
+  timed-out run keeps executing in its thread (an analyst can exhaust memory or CPU with it). Production
+  isolation is a subprocess or container with CPU and memory limits, no network, killed on timeout.
 - Regex guards have false negatives (novel phrasings) and some false positives. They are one layer
   of seven. Only two categories (override, prompt exfiltration) block, to keep false positives on
   ordinary questions low.
@@ -123,5 +127,5 @@ The bot speaks as Commercial Bank to its own staff.
   refuses to start without one), is bound to loopback under `run.sh` and unpublished under Compose.
   It does not know the end user, so it trusts the access levels the API sends; anything that holds
   the token can claim any role. Production would propagate a signed per-user identity.
-- `./run.sh` generates a fresh random JWT secret on each start when none is configured, so sessions
-  end when it stops. Set `JWT_SECRET` to keep them across restarts.
+- `./run.sh` generates fresh random `JWT_SECRET` and `MCP_SERVICE_TOKEN` values on each start when
+  none are configured, so sessions end when it stops. Set `JWT_SECRET` to keep them across restarts.
