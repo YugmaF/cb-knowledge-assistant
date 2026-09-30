@@ -53,13 +53,19 @@ def _sources(state: AgentState) -> dict[str, str]:
     return sources
 
 
+def allowed_urls(state: AgentState) -> set[str]:
+    """URLs an answer may contain: those in this turn's evidence or tool results, minus exfil-looking ones.
+    Shared with the response stream so the draft and the final answer follow the same rule."""
+    urls = set(re.findall(r"https?://[^\s)\]>\"']+", " ".join(_sources(state).values())))
+    return urls - {u for u in urls if "exfil" in u}
+
+
 def validate_answer(state: AgentState, ctx: RunContext) -> dict[str, Any]:
     principal = ctx.principal
     draft = state.get("draft", "")
     sources = _sources(state)
-    source_urls = set(re.findall(r"https?://[^\s)\]>\"']+", " ".join(sources.values())))
     guard = check_output(
-        draft, allowed_urls=source_urls - {u for u in source_urls if "exfil" in u},
+        draft, allowed_urls=allowed_urls(state),
         redact_contact_details=not principal.can(Permission.MCP_READ),
     )
     text = _GROUPED.sub(lambda m: "".join(f"[{i.strip()}]" for i in re.split(r"[,;]", m.group(1))), guard.text)

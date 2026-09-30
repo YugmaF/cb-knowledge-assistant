@@ -67,6 +67,59 @@ async def test_viewer_cannot_be_routed_to_tools(services, fake_llm, viewer):
     assert "tool_agent" not in fake_llm.calls
 
 
+def _split_stream(pieces_for):
+    async def stream(stage, messages):
+        for piece in pieces_for(evidence_ids(messages)):
+            yield piece
+    return stream
+
+
+def _draft_with_email(ids):
+    # the email arrives in three pieces, the way a real model emits it
+    return ["Contact secu", "rity@comm", "bank.example for help ", f"[{ids[0]}]. ", "**Why this answer:** ", f"[{ids[0]}]"]
+
+
+async def test_a_viewer_never_sees_a_contact_detail_in_any_streamed_token(services, fake_llm, viewer):
+    fake_llm.script = {"supervisor": supervisor_says("knowledge_question", ["retrieval"])}
+    fake_llm.stream = _split_stream(_draft_with_email)
+    events, _, _ = await run(services, viewer, "How many days per week can I work remotely?")
+    tokens = [e["text"] for e in load_events(events, "token")]
+    assert tokens, "the answer still streams"
+    assert "security@commbank.example" not in "".join(tokens)
+    assert not any(part in t for t in tokens for part in ("security", "@comm", "bank.example"))
+    assert "security@commbank.example" not in events[-1]["answer"]
+
+
+async def test_an_analyst_may_see_contact_details_while_streaming(services, fake_llm, analyst):
+    fake_llm.script = {"supervisor": supervisor_says("knowledge_question", ["retrieval"])}
+    fake_llm.stream = _split_stream(_draft_with_email)
+    events, _, _ = await run(services, analyst, "How many days per week can I work remotely?")
+    assert "security@commbank.example" in "".join(e["text"] for e in load_events(events, "token"))
+
+
+async def test_token_reset_still_clears_the_rejected_draft_and_the_retry_streams_again(services, fake_llm, viewer):
+    drafts = iter([["Remote work is allowed 5 days a week ", "[POL-999#made-up]."], None])
+
+    async def stream(stage, messages):
+        draft = next(drafts)
+        for piece in draft or [cite_first_document(messages)]:
+            yield piece
+    fake_llm.script = {"supervisor": supervisor_says("knowledge_question", ["retrieval"])}
+    fake_llm.stream = stream
+    events, _, _ = await run(services, viewer, "How many days per week can I work remotely?")
+    kinds = [e["type"] for e in events if e["type"] in ("token", "token_reset")]
+    assert "token_reset" in kinds
+    assert kinds.index("token_reset") < len(kinds) - 1 and kinds[-1] == "token", "retry streams after the reset"
+
+
+async def test_the_extractive_fallback_is_redacted_for_a_viewer_too(services, fake_llm, viewer):
+    fake_llm.script = {}   # every LLM stage fails: keyword routing + extractive answer
+    events, _, _ = await run(services, viewer, "What is the email address for reporting phishing?")
+    text = "".join(e["text"] for e in load_events(events, "token"))
+    assert "quoted directly" in text, "the extractive fallback answered"
+    assert "@commbank.example" not in text
+
+
 async def test_hallucinated_citation_is_caught_and_rewritten(services, fake_llm, viewer):
     drafts = iter(["Remote work is allowed 5 days a week [POL-999#made-up].",
                    None])  # second attempt: cite a real chunk

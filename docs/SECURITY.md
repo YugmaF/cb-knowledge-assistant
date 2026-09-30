@@ -41,10 +41,14 @@ The layers below it hold even when a pattern misses:
 6. **Human approval for writes.** Any state-changing tool (`update_service_status`) pauses the graph
    for a person.
 7. **Output controls.**
-   - URLs in an answer must appear in a cited source; any other URL is replaced. Exfiltration links
+   - URLs in an answer must appear in this turn's evidence or tool results (not necessarily a cited
+     one); any other URL is replaced. Exfiltration links
      like `http://exfil.example/...` are always removed.
    - Markdown images are stripped, which closes the zero-click exfiltration channel.
-   - A canary string in the system prompt blocks the answer if it ever appears in the output.
+   - A canary string in the system prompt blocks the answer if it ever appears in the output. It is a
+     fixed constant, so it catches accidental leaks, not a deliberate encoded one.
+   - The same redactions (contact details, unknown URLs, canary) run on the **stream** one sentence at a
+     time before each sentence is released, so the live draft never shows what the final answer redacts.
 
 ## Data exfiltration
 

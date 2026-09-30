@@ -168,7 +168,7 @@ flowchart LR
 
 | Requirement | Where | Notes |
 |---|---|---|
-| **Streamlit chat, multi-turn, streaming** | `ui/streamlit_app.py` | Tokens stream as the draft, then are replaced by the validated answer. Sources and a "how this answer was produced" panel are shown per answer. |
+| **Streamlit chat, multi-turn, streaming** | `ui/streamlit_app.py` | The draft streams a sentence at a time, each redacted (contact details, unknown URLs, leaked prompt marker) before release, then is replaced by the validated answer. Sources and a "how this answer was produced" panel are shown per answer. |
 | **Agent activity panel (real time)** | `agents/events.py`, `api/runner.py` | Every node start/finish, supervisor plan, retrieval hit list, tool call, RLM phase, memory update, validation result and LLM call (tokens, cost, latency) is an SSE event. |
 | **FastAPI, async APIs / retrieval / tools** | `api/main.py` | Namespace queries run concurrently (`asyncio.gather`), as do RLM sub-agents (bounded by a semaphore). Tools run under `asyncio.timeout`, CPU-bound embedding runs in `to_thread`, and the sandbox calls back into the loop with `run_coroutine_threadsafe`. |
 | **Exception handling, structured logging** | `errors.py`, `api/main.py`, `observability.py` | There is a typed error per dependency and one JSON error envelope with `request_id`. Logs are structlog JSON lines with `request_id`/`user`/`thread_id` bound via contextvars. |
@@ -302,9 +302,13 @@ time a test failed.
 
 ## Assumptions and trade-offs
 
-- **The streamed text is a draft.** Tokens stream as they are generated; the validator runs after,
-  and the UI replaces the draft with the validated answer (or a corrected rewrite). Validating first
-  would be safer but would remove streaming. For a regulated external channel I would buffer instead.
+- **The streamed text is a draft.** The stream is held back one sentence at a time and run through the
+  same output redactions as the final answer (contact details for roles without directory access,
+  unknown URLs, a leaked prompt marker), so a viewer never sees text the final answer redacts. Citations
+  and grounding need the whole answer, so the validator still runs after and the UI replaces the draft
+  with the validated answer (or a corrected rewrite); until then a draft can contain an uncited or
+  ungrounded claim. Validating first would be safer but would remove streaming. For a regulated
+  external channel I would buffer instead.
 - **LLM plans once, code routes.** The supervisor produces a plan; a deterministic dispatcher walks
   it. This costs flexibility (no re-planning mid-turn) but makes every turn's path predictable,
   traceable and testable. The tool agent is the one place with an open-ended LLM loop, bounded to 5 steps.

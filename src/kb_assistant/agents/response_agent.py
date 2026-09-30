@@ -2,7 +2,10 @@
 
 The streamed text is a *draft*: the validator checks it afterwards and may send it back for one
 rewrite. The UI shows the draft live and replaces it with the validated answer. Validating before
-streaming would be safer but would remove streaming; this is the stated trade-off.
+streaming would be safer but would remove streaming; this is the stated trade-off. To limit it, the
+stream is held back one sentence at a time and redacted (contact details, unknown URLs, leaked prompt
+marker) with the same rules as the final answer, so the draft never shows what the answer redacts.
+Citations and grounding are only checked once the whole answer exists.
 
 If the LLM is unavailable the agent still answers: it returns the most relevant passages verbatim,
 with citations, and says the answer is extractive.
@@ -20,8 +23,11 @@ from kb_assistant.agents.common import format_evidence, node_event, today
 from kb_assistant.agents.events import emit
 from kb_assistant.agents.prompts import RESPONSE_CONTEXT, RESPONSE_SYSTEM, canary
 from kb_assistant.agents.state import AgentState, RunContext
+from kb_assistant.agents.stream_gate import SentenceGate
+from kb_assistant.agents.validator import allowed_urls
 from kb_assistant.errors import AssistantError
 from kb_assistant.observability import get_logger
+from kb_assistant.security.rbac import Permission
 
 log = get_logger(__name__)
 
@@ -95,6 +101,12 @@ def extractive_answer(state: AgentState) -> str:
     return "\n".join(lines)
 
 
+def _stream_gate(state: AgentState, ctx: RunContext) -> SentenceGate:
+    """The same redaction rules the validator applies to the final answer."""
+    return SentenceGate(allowed_urls=allowed_urls(state),
+                        redact_contact_details=not ctx.principal.can(Permission.MCP_READ))
+
+
 async def response_agent(state: AgentState, runtime: Runtime[RunContext]) -> dict[str, Any]:
     attempt = state.get("validation_attempts", 0)
     node_event("response_agent", "started", attempt=attempt + 1)
@@ -103,10 +115,14 @@ async def response_agent(state: AgentState, runtime: Runtime[RunContext]) -> dic
     if attempt:
         emit({"type": "token_reset"})  # tell the UI to clear the rejected draft
     parts: list[str] = []
+    gate = _stream_gate(state, ctx)
     try:
         async for token in ctx.services.llm.stream("response", build_messages(state, ctx)):
             parts.append(token)
-            emit({"type": "token", "text": token})
+            for safe in gate.feed(token):
+                emit({"type": "token", "text": safe})
+        for safe in gate.flush():
+            emit({"type": "token", "text": safe})
         draft = "".join(parts)
         degraded = state.get("degraded", [])
     except AssistantError as exc:
@@ -114,5 +130,7 @@ async def response_agent(state: AgentState, runtime: Runtime[RunContext]) -> dic
         draft = extractive_answer(state)
         degraded = list(state.get("degraded", [])) + ["response: LLM unavailable, extractive answer"]
         emit({"type": "token_reset"})
-        emit({"type": "token", "text": draft})
+        gate = _stream_gate(state, ctx)
+        for safe in (*gate.feed(draft), *gate.flush()):
+            emit({"type": "token", "text": safe})
     return {"draft": draft, "degraded": degraded}
