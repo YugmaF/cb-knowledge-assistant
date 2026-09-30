@@ -245,18 +245,35 @@ every turn traced in LangSmith.
 
 **Retrieval recall@5** (`scripts/eval_retrieval.py`, 23 golden questions + 1 access-control negative)
 
-| Configuration | Overall | Exact IDs (n=2) | Paraphrases (n=3) | Standard (n=17) |
-|---|---|---|---|---|
-| Dense only (α=1.0) | 0.835 | **0.00** | 0.67 | 0.95 |
-| BM25 only (α=0.0) | 0.829 | 1.00 | **0.00** | 0.95 |
-| Hybrid (α=0.6) | 0.872 | 1.00 | 0.33 | 0.95 |
-| **Hybrid + cross-encoder rerank** | **0.919** | 1.00 | 0.67 | 0.95 |
+| Configuration | Command | Overall | Exact IDs (n=2) | Exact term (n=1) | Paraphrases (n=3) | Standard (n=17) | Access leaks |
+|---|---|---|---|---|---|---|---|
+| Dense only (α=1.0) | `--alpha 1.0 --no-rerank` | 0.835 | **0.00** | 1.00 | 0.67 | 0.95 | 0 |
+| BM25 only (α=0.0) | `--alpha 0.0 --no-rerank` | 0.829 | 1.00 | 1.00 | **0.00** | 0.95 | 0 |
+| Hybrid (α=0.6) | `--alpha 0.6 --no-rerank` | 0.872 | 1.00 | 1.00 | 0.33 | 0.95 | 0 |
+| **Hybrid + cross-encoder rerank** | `--alpha 0.6` | **0.919** | 1.00 | 1.00 | 0.67 | 0.95 | 0 |
 
-Dense search cannot find `INC-2026-020` by its id; BM25 cannot match "message backlog on the event
-stream" to "Kafka consumer lag". Hybrid fixes the first failure, and reranking recovers the second. Access-control
-leaks: 0 in every configuration. The one low-recall standard question is the multi-document
-"recurring root causes" question: top-5 retrieval cannot hold 14 incidents, which is why it is
-routed to the RLM research agent instead. The set is small: treat these as directional.
+This is an ablation: same golden set, one variable changed per row. Every number was reproduced
+unchanged on 2026-10-01 against live Pinecone, after the security-review fixes landed, so those
+fixes did not move retrieval quality. To re-run a row:
+
+```bash
+uv run python scripts/eval_retrieval.py --alpha 0.6            # add --no-rerank or change --alpha
+```
+
+How to read it:
+- **Look at the breakdown, not just the overall.** Dense-only and BM25-only score almost the same
+  overall (0.835 vs 0.829), but they fail on opposite questions. Dense search cannot find
+  `INC-2026-020` by its id. BM25 cannot match "message backlog on the event stream" to "Kafka
+  consumer lag". Hybrid fixes the first failure, and reranking recovers the second.
+- **Access-control leaks: 0 in every configuration.** Tuning quality never weakened the access filter.
+- **Expected low: the multi-document question.** "Recurring root causes" scores 0.13. Top-5
+  retrieval cannot hold the 14 in-window payment incidents, so this question is routed to the RLM
+  research agent instead.
+- **Known gap: one paraphrase.** "Employees could not sign in to any internal application in the
+  morning" (expected `INC-2026-018`) scores 0.00 in every configuration. Query expansion, or a
+  synonym-rich contextual header for that chunk, is the next thing to try.
+- **The set is small (23 questions, 3 paraphrases),** so one question moves a category by 0.33.
+  Treat these numbers as directional. Thumbs-down feedback grows the set (`scripts/export_feedback.py`).
 
 **Pinecone parity.** All four configurations give identical numbers on live Pinecone and on the
 in-process local store (0.919 / 0.872 / 0.835 / 0.829), which confirms that the two backends compute
