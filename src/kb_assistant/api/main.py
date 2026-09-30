@@ -59,6 +59,7 @@ log = get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
+    settings.validate_secrets()  # refuse to start with a missing, short or published secret
     configure_logging(settings)
     tracing = configure_tracing(settings)
     services = getattr(app.state, "services_override", None) or build_services(settings)

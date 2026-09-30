@@ -63,7 +63,10 @@ The layers below it hold even when a pattern misses:
 
 - PBKDF2-SHA256 (200k iterations) password hashes, compared in constant time. The same error is
   returned for an unknown user and a wrong password.
-- HS256 JWT, 2-hour expiry. The role is re-read from the user table on every request, so a role
+- HS256 JWT, 2-hour expiry. The signing secret has no default: the API refuses to start unless
+  `JWT_SECRET` is set, at least 32 bytes and not a published value or placeholder, because this
+  repository is public and any secret in it is known to attackers. `./run.sh` generates a random one
+  for each run when none is set; Docker Compose requires it (`${JWT_SECRET:?}`). The role is re-read from the user table on every request, so a role
   change takes effect immediately.
 - Login is rate-limited per IP (brute force); chat is rate-limited per user and role.
 - RBAC matrix:
@@ -97,4 +100,5 @@ The bot speaks as Commercial Bank to its own staff.
   of seven, tuned to be strict on the input side where a false positive costs one rephrase.
 - The MCP server trusts the network; production would authenticate the calling service and
   propagate the acting user.
-- The JWT secret has a development default; set `JWT_SECRET` outside local runs.
+- `./run.sh` generates a fresh random JWT secret on each start when none is configured, so sessions
+  end when it stops. Set `JWT_SECRET` to keep them across restarts.

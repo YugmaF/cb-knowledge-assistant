@@ -6,6 +6,7 @@ an environment variable / `.env` entry. Nothing reads `os.environ` directly anyw
 
 from __future__ import annotations
 
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -13,6 +14,31 @@ from pydantic import AliasChoices, BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+class ConfigError(RuntimeError):
+    """The app is misconfigured in a way that must stop it from starting."""
+
+
+# The repository is public, so any secret that appears in it is a secret an attacker knows.
+MIN_SECRET_BYTES = 32
+_KNOWN_SECRETS = frozenset({
+    "dev-only-change-me-dev-only-change-me",   # the old built-in default
+    "change-me-to-a-long-random-string",       # the old .env.example value
+})
+_PLACEHOLDER = re.compile(r"change[-_ ]?me|replace[-_ ]?me|dev-only", re.I)
+
+
+def check_secret(name: str, value: str) -> str:
+    """Return `value` if it is usable as a secret, otherwise raise ConfigError saying how to fix it."""
+    fix = f"Set {name} to a random value, e.g. `openssl rand -hex 32` (./run.sh does this for you)."
+    if not value:
+        raise ConfigError(f"{name} is not set. {fix}")
+    if value in _KNOWN_SECRETS or _PLACEHOLDER.search(value):
+        raise ConfigError(f"{name} is a published default or a placeholder. {fix}")
+    if len(value.encode()) < MIN_SECRET_BYTES:
+        raise ConfigError(f"{name} is shorter than {MIN_SECRET_BYTES} bytes. {fix}")
+    return value
 
 
 class StageModels(BaseModel):
@@ -103,7 +129,7 @@ class Settings(BaseSettings):
     memory_recall_k: int = 3
 
     # --- security -------------------------------------------------------------------------
-    jwt_secret: str = "dev-only-change-me-dev-only-change-me"
+    jwt_secret: str = ""  # no default on purpose: validate_secrets() refuses to start without a real one
     jwt_ttl_minutes: int = 120
     max_message_chars: int = 2000
     rate_limits: dict[str, RateLimitRule] = Field(default_factory=lambda: dict(DEFAULT_RATE_LIMITS))
@@ -123,6 +149,10 @@ class Settings(BaseSettings):
     def _merge_rate_limits(cls, value: dict[str, RateLimitRule]) -> dict[str, RateLimitRule]:
         # Overriding one role (RATE_LIMITS__VIEWER__CAPACITY=...) must not delete the other roles.
         return {**DEFAULT_RATE_LIMITS, **value}
+
+    def validate_secrets(self) -> None:
+        """Called once at API start-up: a weak secret stops the app instead of running insecurely."""
+        check_secret("JWT_SECRET", self.jwt_secret)
 
     @property
     def use_pinecone(self) -> bool:

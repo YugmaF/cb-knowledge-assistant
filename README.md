@@ -56,6 +56,7 @@ It builds only if one of these checks fails.
 
 - **Ports:** override with `API_PORT`, `UI_PORT` and `MCP_PORT`.
 - **Index and trace project:** set with `KB_PINECONE_INDEX` (default `cb-knowledge`) and `KB_LANGSMITH_PROJECT`. These are applied *after* the env file is loaded, so a borrowed env file can never point the app at another project's index.
+- **Secrets:** the API refuses to start without a strong `JWT_SECRET` (32+ bytes, not a placeholder). When none is set, `run.sh` generates a random one for that run and says so; set your own to keep sessions across restarts. Docker Compose requires it in `.env` (`openssl rand -hex 32`).
 - **Without keys:** it runs on the local store, with no LLM answers (extractive fallback) and no tracing.
 - **Logs:** written to `logs/`. Ctrl+C stops all three services.
 

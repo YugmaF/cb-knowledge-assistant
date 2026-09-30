@@ -25,6 +25,22 @@ def client(services, fake_llm, monkeypatch):
     main.app.state.services_override = None
 
 
+@pytest.mark.parametrize("secret", ["", "dev-only-change-me-dev-only-change-me", "too-short"])
+def test_api_refuses_to_start_with_a_weak_jwt_secret(services, monkeypatch, secret):
+    from kb_assistant.api import main
+    from kb_assistant.config import ConfigError
+
+    weak = services.settings.model_copy(update={"jwt_secret": secret})
+    monkeypatch.setattr(main, "get_settings", lambda: weak)
+    main.app.state.services_override = services
+    try:
+        with pytest.raises(ConfigError, match="JWT_SECRET"):
+            with TestClient(main.app):
+                pass
+    finally:
+        main.app.state.services_override = None
+
+
 def login(client, user, password):
     resp = client.post("/auth/login", json={"username": user, "password": password})
     assert resp.status_code == 200, resp.text

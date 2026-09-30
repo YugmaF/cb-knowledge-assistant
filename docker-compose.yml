@@ -21,6 +21,7 @@ services:
     environment:
       MCP_URL: http://mcp:8765/mcp
       LOG_JSON: "true"
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env (openssl rand -hex 32)}
     volumes:
       - index:/app/data/index
       - state:/app/data/state

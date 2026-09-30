@@ -20,6 +20,10 @@ from kb_assistant.errors import LLMUnavailableError
 from kb_assistant.retrieval.ingest import ingest
 from kb_assistant.security.rbac import Principal
 
+# Strong-looking test secrets: the app refuses weak ones, so the fixtures must not use them.
+TEST_JWT_SECRET = "test-jwt-secret-" + "0123456789abcdef" * 2
+TEST_MCP_TOKEN = "test-mcp-token-" + "fedcba9876543210" * 2
+
 
 class FakeLLM:
     """Implements the LLM protocol. `script[stage](messages)` returns a dict (structured), a str
@@ -85,7 +89,7 @@ def settings(index_dir, tmp_path) -> Settings:
         index_dir=index_dir, embedding_model="hashing", embedding_dim=256, rerank_enabled=False,
         pinecone_api_key="", llm_api_key="test-key", memory_db_path=tmp_path / "memory.sqlite",
         checkpoint_db_path=tmp_path / "checkpoints.sqlite", corpus_dir=PROJECT_ROOT / "data" / "corpus",
-        log_json=False, sandbox_timeout_s=3.0,
+        log_json=False, sandbox_timeout_s=3.0, jwt_secret=TEST_JWT_SECRET,
     )
 
 

@@ -52,6 +52,20 @@ done
 
 # ---------------------------------------------------------------- environment
 
+random_hex() {
+  openssl rand -hex 32 2>/dev/null || "$PY" -c 'import secrets; print(secrets.token_hex(32))'
+}
+
+# A secret the app refuses to start without. Keep a real value from the env file; otherwise make a
+# random one for this run. The example placeholder (REPLACE_ME…) counts as "not set".
+ensure_secret() {  # NAME
+  local name=$1 value=${!1:-}
+  if [[ -z $value || $value == *REPLACE_ME* ]]; then
+    export "$name=$(random_hex)"
+    say "$name was not set: generated a random one for this run (sessions end when run.sh stops)"
+  fi
+}
+
 load_env() {
   if [[ -f "$ENV_FILE" ]]; then
     say "loading keys from $ENV_FILE"
@@ -66,6 +80,7 @@ load_env() {
   export LANGSMITH_PROJECT=${KB_LANGSMITH_PROJECT:-cb-knowledge-assistant}
   unset LLM_MODEL || true   # another project's single-model setting; this app routes models per stage
   export MCP_URL="http://127.0.0.1:${MCP_PORT}/mcp" MCP_PORT API_URL="http://127.0.0.1:${API_PORT}"
+  ensure_secret JWT_SECRET
 
   local key
   for key in OPENROUTER_API_KEY PINECONE_API_KEY LANGSMITH_API_KEY; do
