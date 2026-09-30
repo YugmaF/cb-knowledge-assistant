@@ -2,6 +2,8 @@
 
 **An enterprise RAG assistant that can't be talked out of its permissions.** Multi-agent LangGraph · hybrid Pinecone search · Recursive Language Model (RLM) research agent · MCP tools · RBAC enforced in code. Synthetic data.
 
+▶ **[Demo video (23 min)](https://drive.google.com/file/d/18D3Vgvhf8xSAkNzOB3jpwnrT2BQ2F_So/view?usp=sharing)**: architecture, hybrid RAG, the RLM research agent checked against an answer key, RBAC and prompt-injection defences, human approval, LangSmith traces, and the trade-offs.
+
 | Benchmark | Result |
 |---|---|
 | Retrieval recall@5 | **0.919** hybrid + rerank (dense only 0.835, BM25 only 0.829) |
