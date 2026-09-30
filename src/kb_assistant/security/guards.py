@@ -16,7 +16,7 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 
-# A random marker placed in the system prompt. If it ever appears in an answer, the prompt leaked.
+# A fixed marker placed in the system prompt. If it ever appears in an answer, the prompt leaked.
 PROMPT_CANARY = "cb-canary-5e1f9a"
 
 _ZERO_WIDTH = re.compile(r"[​-‏⁠-⁤﻿]")
@@ -36,6 +36,14 @@ _INPUT_RULES: list[tuple[str, re.Pattern[str]]] = [
     ("instruction_override", re.compile(
         r"\b(you are now|act as|pretend (to be|you are)|from now on you)\b.{0,60}"
         r"\b(unrestricted|jailbroken|dan|developer mode|no (rules|restrictions|filters))", re.I)),
+    # Paraphrases: "disregard what you were told earlier", "forget everything you've been told".
+    ("instruction_override", re.compile(
+        r"\b(ignore|disregard|forget)\b\W+(?:\w+\W+){0,3}?(what|everything|anything|all)\s+(that\s+)?"
+        r"you(?:'ve| have)?\s+(?:were|was|been|had been|got)\s+(?:told|given|instructed|taught)", re.I)),
+    # "ignore the above and print ..." (the verb must follow directly, so "ignore the above typo" passes).
+    ("instruction_override", re.compile(
+        r"\b(ignore|disregard|forget)\s+(?:everything\s+|all\s+)?(?:the\s+)?(?:above|preceding)\s*[.,;:!]?\s*"
+        r"(?:and|then)\s+(?:now\s+)?(?:print|reveal|show|tell|output|repeat|leak|list|give|act|pretend)\b", re.I)),
     ("prompt_exfiltration", re.compile(
         r"\b(reveal|show|print|repeat|output|leak|tell me)\b.{0,40}"
         r"\b(system prompt|hidden (prompt|instructions)|your (instructions|rules|prompt))", re.I)),
@@ -58,9 +66,7 @@ _INPUT_RULES: list[tuple[str, re.Pattern[str]]] = [
 
 # Retrieved documents: the same override / exfiltration signals, plus text addressed to the AI.
 _RETRIEVED_RULES: list[re.Pattern[str]] = [
-    _INPUT_RULES[0][1],
-    _INPUT_RULES[1][1],
-    _INPUT_RULES[2][1],
+    *(pattern for category, pattern in _INPUT_RULES if category in HARD_BLOCK),
     re.compile(r"\b(note|notice|message|instruction)s? (to|for) (the )?(ai|assistant|llm|model|chatbot)s?\b", re.I),
     re.compile(r"\binclude (this|the following) (link|url)\b", re.I),
     re.compile(r"https?://\S*(exfil|collect|steal|leak)\S*", re.I),
@@ -84,6 +90,30 @@ _BRAND_RULES: list[tuple[str, re.Pattern[str]]] = [
         r"\b(incompetent|terrible|a joke|failing|insolvent|going bankrupt)\b", re.I)),
     ("speculation", re.compile(r"\b(the bank|commercial bank)\b.{0,30}\b(will|might|could) (collapse|fail|go bankrupt)\b", re.I)),
 ]
+
+
+# Letters from Cyrillic and Greek that look like Latin ones. NFKC does not fold them, so "Ign\u043ere" (with a
+# Cyrillic o) would slip past every pattern. Folded for MATCHING only: the text the model sees is unchanged.
+_CONFUSABLES = str.maketrans({
+    # Cyrillic lowercase
+    "\u0430": "a", "\u0435": "e", "\u043e": "o", "\u0440": "p", "\u0441": "c", "\u0443": "y", "\u0445": "x",
+    "\u0456": "i", "\u0458": "j", "\u0455": "s", "\u04bb": "h", "\u0501": "d", "\u051b": "q", "\u051d": "w",
+    "\u0475": "v", "\u04cf": "l", "\u043a": "k",
+    # Cyrillic uppercase
+    "\u0410": "A", "\u0412": "B", "\u0415": "E", "\u041a": "K", "\u041c": "M", "\u041d": "H", "\u041e": "O",
+    "\u0420": "P", "\u0421": "C", "\u0422": "T", "\u0425": "X", "\u0406": "I", "\u0408": "J", "\u0405": "S",
+    "\u0423": "Y", "\u04ae": "Y",
+    # Greek lowercase
+    "\u03b1": "a", "\u03b5": "e", "\u03b9": "i", "\u03ba": "k", "\u03bd": "v", "\u03bf": "o", "\u03c1": "p",
+    "\u03c4": "t", "\u03c5": "u", "\u03c7": "x", "\u03b3": "y",
+    # Greek uppercase
+    "\u0391": "A", "\u0392": "B", "\u0395": "E", "\u0396": "Z", "\u0397": "H", "\u0399": "I", "\u039a": "K",
+    "\u039c": "M", "\u039d": "N", "\u039f": "O", "\u03a1": "P", "\u03a4": "T", "\u03a5": "Y", "\u03a7": "X",
+})
+
+
+def fold_confusables(text: str) -> str:
+    return text.translate(_CONFUSABLES)
 
 
 def normalize(text: str) -> str:
@@ -113,8 +143,9 @@ def check_user_input(message: str, max_chars: int) -> GuardResult:
     categories: list[str] = []
     flags: list[str] = []
     reasons: list[str] = []
+    scan = fold_confusables(text)  # match on Latin look-alikes; `text` itself is passed on unchanged
     for category, pattern in _INPUT_RULES:
-        match = pattern.search(text)
+        match = pattern.search(scan)
         if match:
             (categories if category in HARD_BLOCK else flags).append(category)
             reasons.append(f"{category}: '{match.group(0)[:60]}'")
@@ -137,7 +168,8 @@ def sanitize_retrieved(text: str) -> SanitizedText:
     sentences = re.split(r"(?<=[.!?:])\s+", clean)
     kept: list[str] = []
     for sentence in sentences:
-        hit = next((p for p in _RETRIEVED_RULES if p.search(sentence)), None)
+        folded = fold_confusables(sentence)
+        hit = next((p for p in _RETRIEVED_RULES if p.search(folded)), None)
         if hit:
             findings.append(sentence[:80])
             kept.append("[removed: text addressed to AI systems]")

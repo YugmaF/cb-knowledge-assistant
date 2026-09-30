@@ -19,7 +19,9 @@ Pattern matching catches the common phrasings and makes attacks visible, but it 
 The layers below it hold even when a pattern misses:
 
 1. **Input guard.** Unicode NFKC normalisation and zero-width stripping, so `ig​nore` still
-   matches. Then rules in four categories. **Instruction override** and **prompt exfiltration** block
+   matches, and Cyrillic and Greek look-alike letters are folded to Latin for matching (the text the
+   model sees is unchanged). Only those two alphabets are folded, not every Unicode confusable, and
+   paraphrases are covered only for the phrasings in the rule list. Then rules in four categories. **Instruction override** and **prompt exfiltration** block
    the message (zero LLM calls, logged as a security event). **Data exfiltration** and **tool abuse**
    patterns (asking to send data to a URL, bulk export, "I'm an admin", "bypass approval", code
    patterns) only *flag* it: a security event is recorded and shown in the activity panel, and the
@@ -27,7 +29,7 @@ The layers below it hold even when a pattern misses:
    escalate this approval?"), and because the defences that matter do not depend on them: the role
    comes from the JWT, permissions are re-checked in code on every tool call, and output URLs and
    images are stripped.
-2. **Retrieved-content sanitiser.** Sentences addressed to an AI, override phrases and suspicious
+2. **Retrieved-content sanitiser.** (Uses the same look-alike folding and override rules.) Sentences addressed to an AI, override phrases and suspicious
    links are replaced with `[removed: text addressed to AI systems]`. The chunk stays (the rest may be
    legitimate evidence), and it is flagged in the activity panel and the trace.
 3. **Delimiting.** Evidence goes inside `<document id=…>` and `<tool_result>` tags, and every system
