@@ -56,7 +56,7 @@ It builds only if one of these checks fails.
 
 - **Ports:** override with `API_PORT`, `UI_PORT` and `MCP_PORT`.
 - **Index and trace project:** set with `KB_PINECONE_INDEX` (default `cb-knowledge`) and `KB_LANGSMITH_PROJECT`. These are applied *after* the env file is loaded, so a borrowed env file can never point the app at another project's index.
-- **Secrets:** the API refuses to start without a strong `JWT_SECRET` (32+ bytes, not a placeholder). When none is set, `run.sh` generates a random one for that run and says so; set your own to keep sessions across restarts. Docker Compose requires it in `.env` (`openssl rand -hex 32`).
+- **Secrets:** the API refuses to start without a strong `JWT_SECRET` and `MCP_SERVICE_TOKEN` (32+ bytes, not placeholders), and the MCP server refuses to start without the token. When either is unset, `run.sh` generates a random one for that run and says so; set your own to keep sessions across restarts. Docker Compose requires both in `.env` (`openssl rand -hex 32`).
 - **Without keys:** it runs on the local store, with no LLM answers (extractive fallback) and no tracing.
 - **Logs:** written to `logs/`. Ctrl+C stops all three services.
 
@@ -64,6 +64,7 @@ It builds only if one of these checks fails.
 
 ```bash
 uv sync
+export JWT_SECRET=$(openssl rand -hex 32) MCP_SERVICE_TOKEN=$(openssl rand -hex 32)   # both required
 uv run python -m kb_assistant.retrieval.ingest --if-missing     # build only when needed
 uv run python -m kb_assistant.mcp_server.server                 # terminal 1: MCP  :8765
 uv run uvicorn kb_assistant.api.main:app --port 8010            # terminal 2: API  :8010/docs
@@ -73,7 +74,8 @@ API_URL=http://127.0.0.1:8010 uv run streamlit run src/kb_assistant/ui/streamlit
 **Docker Compose**
 
 ```bash
-cp .env.example .env && docker compose up --build        # UI http://localhost:8501
+cp .env.example .env     # then set JWT_SECRET and MCP_SERVICE_TOKEN to `openssl rand -hex 32` values
+docker compose up --build                                # UI http://localhost:8501 (MCP is not published)
 ```
 
 **Without the UI**, one command prints the whole activity stream for a question:
@@ -325,9 +327,11 @@ time a test failed.
   The rest of the app only sees a `Principal`, so Keycloak/OIDC replaces two functions.
 - **In-process rate limiter and fault switches.** These are correct for one API replica; with several
   replicas the bucket moves to Redis (one Lua script) and the fault flags into config.
-- **MCP server without authentication.** It sits on the internal network behind the API, and the
-  API enforces RBAC before any MCP call. A production MCP server would verify a service token and
-  the acting user.
+- **MCP server: service token, not per-user identity.** The server refuses every call without a
+  shared `MCP_SERVICE_TOKEN`, is bound to loopback under `run.sh`, and is not published to the host by
+  Docker Compose. The token authenticates the *API*; the API enforces RBAC first and tells the server
+  which access levels the caller has. The server trusts that, so anything holding the token can
+  impersonate any role. Production would propagate a signed per-user identity instead.
 - **Synthetic data**: 58 documents, 30 incidents, 25 employees, 13 services. The incident markdown
   and the MCP incident records were generated from one source so they agree.
 

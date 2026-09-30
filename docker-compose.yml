@@ -8,7 +8,9 @@ services:
       MCP_HOST: 0.0.0.0
       MCP_PORT: "8765"
       MCP_ALLOWED_HOSTS: "mcp:8765,localhost:8765,127.0.0.1:8765"
-    ports: ["${MCP_PORT_HOST:-8765}:8765"]
+      MCP_SERVICE_TOKEN: ${MCP_SERVICE_TOKEN:?set MCP_SERVICE_TOKEN in .env (openssl rand -hex 32)}
+    # Not published to the host: only the api container can reach it, over the compose network.
+    expose: ["8765"]
     restart: unless-stopped
 
   api:
@@ -22,6 +24,7 @@ services:
       MCP_URL: http://mcp:8765/mcp
       LOG_JSON: "true"
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env (openssl rand -hex 32)}
+      MCP_SERVICE_TOKEN: ${MCP_SERVICE_TOKEN:?set MCP_SERVICE_TOKEN in .env (openssl rand -hex 32)}
     volumes:
       - index:/app/data/index
       - state:/app/data/state

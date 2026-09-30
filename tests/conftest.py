@@ -90,6 +90,7 @@ def settings(index_dir, tmp_path) -> Settings:
         pinecone_api_key="", llm_api_key="test-key", memory_db_path=tmp_path / "memory.sqlite",
         checkpoint_db_path=tmp_path / "checkpoints.sqlite", corpus_dir=PROJECT_ROOT / "data" / "corpus",
         log_json=False, sandbox_timeout_s=3.0, jwt_secret=TEST_JWT_SECRET,
+        mcp_service_token=TEST_MCP_TOKEN,
     )
 
 

@@ -65,7 +65,7 @@ def build_services(settings: Settings, *, llm: LLM | None = None, mcp_target: An
         memory=MemoryStore(settings.memory_db_path, embedder),
         registry=registry,
         executor=ToolExecutor(registry, settings.tool_timeout_s),
-        mcp=MCPGateway(mcp_target or settings.mcp_url, settings.mcp_timeout_s),
+        mcp=MCPGateway(mcp_target or settings.mcp_url, settings.mcp_timeout_s, settings.mcp_service_token),
         rate_limiter=RateLimiter(settings.rate_limits),
     )
     log.info("services_ready", vector_store=store.name, reranker=reranker.name, embedder=embedder.name,

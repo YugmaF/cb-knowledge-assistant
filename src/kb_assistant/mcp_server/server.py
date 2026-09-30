@@ -2,20 +2,30 @@
 
     uv run python -m kb_assistant.mcp_server.server        # streamable HTTP on :8765/mcp
 
+Every HTTP request must carry `Authorization: Bearer <MCP_SERVICE_TOKEN>`; the server refuses to start
+without a token. The token identifies the API, not the end user: the API enforces RBAC first and
+tells this server which document access levels the caller has (see `query_incidents`).
+
 Read tools are safe to call freely. `update_service_status` is a write: the assistant only calls it
 for administrators, after a human approves it in the UI (LangGraph interrupt).
 """
 
 from __future__ import annotations
 
+import hmac
 import json
 import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
+import uvicorn
 from mcp.server import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
+from starlette.applications import Starlette
+from starlette.responses import JSONResponse
+
+from kb_assistant.config import ConfigError, check_secret
 
 DATA_DIR = Path(os.getenv("ENTERPRISE_DATA_DIR", Path(__file__).resolve().parents[3] / "data" / "enterprise"))
 
@@ -104,14 +114,44 @@ def update_service_status(
     return {"service_id": service_id, "previous_status": previous, "status": status}
 
 
+class ServiceTokenMiddleware:
+    """Refuse every HTTP request that does not carry the shared service token (constant-time compare)."""
+
+    def __init__(self, app, token: str) -> None:
+        self.app = app
+        self._expected = f"Bearer {token}".encode()
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] == "http":
+            supplied = dict(scope["headers"]).get(b"authorization", b"")
+            if not hmac.compare_digest(supplied, self._expected):
+                response = JSONResponse({"error": "unauthorized"}, status_code=401,
+                                        headers={"WWW-Authenticate": "Bearer"})
+                await response(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
+
+
+def build_app(token: str, *, host: str, allowed_hosts: list[str]) -> Starlette:
+    """The MCP endpoint (streamable HTTP, /mcp) behind the service-token check."""
+    app = mcp.streamable_http_app(
+        stateless_http=True, host=host,
+        transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=True,
+                                                     allowed_hosts=allowed_hosts),
+    )
+    app.add_middleware(ServiceTokenMiddleware, token=token)
+    return app
+
+
 def main() -> None:
+    try:
+        token = check_secret("MCP_SERVICE_TOKEN", os.getenv("MCP_SERVICE_TOKEN", ""))
+    except ConfigError as exc:
+        raise SystemExit(f"MCP server not started: {exc}") from exc
     host = os.getenv("MCP_HOST", "127.0.0.1")
     port = int(os.getenv("MCP_PORT", "8765"))
     allowed = os.getenv("MCP_ALLOWED_HOSTS", f"127.0.0.1:{port},localhost:{port},mcp:{port}").split(",")
-    mcp.run(
-        "streamable-http", host=host, port=port, stateless_http=True,
-        transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=True, allowed_hosts=allowed),
-    )
+    uvicorn.run(build_app(token, host=host, allowed_hosts=allowed), host=host, port=port)
 
 
 if __name__ == "__main__":

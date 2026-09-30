@@ -98,7 +98,9 @@ The bot speaks as Commercial Bank to its own staff.
   a separate container with no network.
 - Regex guards have false negatives (novel phrasings) and some false positives. They are one layer
   of seven, tuned to be strict on the input side where a false positive costs one rephrase.
-- The MCP server trusts the network; production would authenticate the calling service and
-  propagate the acting user.
+- The MCP server authenticates the calling *service* with a shared token (constant-time compare,
+  refuses to start without one), is bound to loopback under `run.sh` and unpublished under Compose.
+  It does not know the end user, so it trusts the access levels the API sends; anything that holds
+  the token can claim any role. Production would propagate a signed per-user identity.
 - `./run.sh` generates a fresh random JWT secret on each start when none is configured, so sessions
   end when it stops. Set `JWT_SECRET` to keep them across restarts.

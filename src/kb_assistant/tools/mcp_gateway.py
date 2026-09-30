@@ -11,10 +11,13 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from contextlib import asynccontextmanager
 from typing import Any
 
+import httpx2  # the HTTP client the mcp package itself uses; needed to attach the token header
 from langsmith import traceable
 from mcp import Client
+from mcp.client.streamable_http import streamable_http_client
 
 from kb_assistant import faults
 from kb_assistant.errors import MCPUnavailableError, ToolTimeoutError
@@ -50,12 +53,25 @@ class CircuitBreaker:
 
 
 class MCPGateway:
-    """`target` is a URL (streamable HTTP) in production, or an in-process server in tests."""
+    """`target` is a URL (streamable HTTP) in production, or an in-process server in tests.
+    Calls to a URL carry the shared service token; the MCP server refuses calls without it."""
 
-    def __init__(self, target: Any, timeout_s: float) -> None:
+    def __init__(self, target: Any, timeout_s: float, service_token: str = "") -> None:
         self._target = target
         self._timeout = timeout_s
+        self._token = service_token
         self.breaker = CircuitBreaker()
+
+    @asynccontextmanager
+    async def _client(self):
+        if not isinstance(self._target, str):
+            async with Client(self._target) as client:
+                yield client
+            return
+        headers = {"Authorization": f"Bearer {self._token}"} if self._token else {}
+        async with httpx2.AsyncClient(headers=headers, timeout=httpx2.Timeout(self._timeout)) as http:
+            async with Client(streamable_http_client(self._target, http_client=http)) as client:
+                yield client
 
     @traceable(run_type="tool", name="mcp_call")
     async def call(self, tool: str, arguments: dict[str, Any]) -> Any:
@@ -65,7 +81,7 @@ class MCPGateway:
         self.breaker.before_call()
         try:
             async with asyncio.timeout(self._timeout):
-                async with Client(self._target) as client:
+                async with self._client() as client:
                     result = await client.call_tool(tool, arguments)
         except TimeoutError as exc:
             self.breaker.record(False)

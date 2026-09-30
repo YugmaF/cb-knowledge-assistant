@@ -110,6 +110,8 @@ class Settings(BaseSettings):
     enterprise_data_dir: Path = PROJECT_ROOT / "data" / "enterprise"
     mcp_url: str = "http://127.0.0.1:8765/mcp"
     mcp_timeout_s: float = 6.0
+    # Shared secret between the API and the MCP server. The server refuses every call without it.
+    mcp_service_token: str = ""
 
     # --- agents -----------------------------------------------------------------------------
     tool_timeout_s: float = 10.0
@@ -153,6 +155,7 @@ class Settings(BaseSettings):
     def validate_secrets(self) -> None:
         """Called once at API start-up: a weak secret stops the app instead of running insecurely."""
         check_secret("JWT_SECRET", self.jwt_secret)
+        check_secret("MCP_SERVICE_TOKEN", self.mcp_service_token)
 
     @property
     def use_pinecone(self) -> bool:
