@@ -15,11 +15,18 @@
 Live Pinecone, 23 golden questions, re-run 2026-10-01. [Full ablation →](#results)
 <sub>¹ Measured 2026-09-28; root cause right on 14/16. "Last year" is relative to today, so the count drifts (15 on 2026-10-01).</sub>
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/architecture-dark.png">
+  <img alt="Architecture: Streamlit UI to FastAPI to a LangGraph orchestrator (input guard and memory, supervisor, retrieval, research and tool agents, response and validator), backed by Pinecone, a Python sandbox and an MCP server, with every turn traced in LangSmith" src="docs/img/architecture-light.png">
+</picture>
+
+<sub>Agents return evidence to the supervisor's dispatch step, which hands it to the response agent. LLM calls (OpenRouter with a cross-provider fallback) are omitted for clarity. Interactive version with guided views: open `docs/architecture.html` from a clone.</sub>
+
 **Why it is different**
 
 - **RLM, not a bigger context.** The agent writes a sandboxed search plan, reads only the sections it chose, recurses with sub-agents, and counts in code.
 - **Permissions live in code, never in prompts.** Retrieval filters, tool re-checks, MCP level filtering, human approval for writes.
-- **Answers are verified.** Citations must exist and numbers must match their source, even while streaming.
+- **Answers are verified.** Citations must exist and numbers must match their source; contact details and unknown links are redacted sentence by sentence while streaming.
 - **It degrades instead of crashing.** Every dependency failure has a tested fallback you can trigger live.
 - **Attacked by its author.** 9 issues found and fixed with tests; 20 more [documented](#security-review-known-limitations-and-next-steps).
 
@@ -114,6 +121,8 @@ time a test failed.
 ---
 
 ## Architecture
+
+The overview diagram is at the top of this page (source: `docs/architecture.json`). The graph below shows the node-level detail, including the approval gate and the validator's retry.
 
 ```mermaid
 flowchart LR
@@ -363,11 +372,11 @@ uv run python scripts/eval_research.py   # RLM vs ground truth (needs an LLM key
 
 ## Security review: known limitations and next steps
 
-I attacked my own build with adversarial probes. Eight items were fixed, each with a regression test:
-the JWT secret default; unauthenticated and published MCP; MCP records bypassing document access levels;
-input-guard false positives; look-alike-letter and paraphrase evasion; tokens streaming before
-redaction; sandbox data mutation together with the login timing oracle; and substring number grounding
-in the validator. Everything below was found and deliberately **not** fixed yet. Each line states the
+I attacked my own build with adversarial probes. Nine issues were fixed, each with a regression test:
+the JWT secret default; unauthenticated and published MCP; MCP records bypassing document access
+levels; input-guard false positives; look-alike-letter and paraphrase evasion; tokens streaming before
+redaction; sandbox data mutation; the login timing oracle; and substring number grounding in the
+validator. Everything below was found and deliberately **not** fixed yet. Each line states the
 risk and the planned fix. Items marked *reproduced* were demonstrated against the running code.
 
 - **Sandbox isolation.** It is an in-process thread with no memory cap and a timeout that cannot stop it: a 40-line string-doubling loop exhausted a 2.5 GB cap in 0.7 s without touching the step budget, and a timed-out call keeps burning CPU, stalling the event loop and the shared thread pool (*reproduced*; reachable by analysts and admins through `python_analysis`). Fix: run it in a subprocess with CPU and memory limits and kill it on timeout.

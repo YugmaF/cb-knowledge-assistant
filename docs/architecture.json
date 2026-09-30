@@ -1,0 +1,365 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Commercial Bank Knowledge Assistant",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "request-path",
+        "label": "One question, end to end",
+        "focus": [
+          "ui",
+          "api",
+          "guard",
+          "supervisor",
+          "response"
+        ],
+        "note": "Guarded, planned once, answered from evidence, validated, streamed back."
+      },
+      {
+        "id": "rlm-path",
+        "label": "Recursive research (RLM)",
+        "focus": [
+          "supervisor",
+          "research",
+          "sandbox",
+          "pinecone"
+        ],
+        "note": "The LLM writes a sandboxed search plan; sub-agents recurse; code does the counting."
+      },
+      {
+        "id": "trust-boundaries",
+        "label": "Where permissions are enforced",
+        "focus": [
+          "api",
+          "guard",
+          "retrieval",
+          "tools",
+          "mcp",
+          "sandbox"
+        ],
+        "note": "JWT role, retrieval filter, tool re-check, MCP level filter, sandbox allow-list."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "ui",
+      "type": "frontend",
+      "label": "Streamlit UI",
+      "sublabel": "chat + live activity",
+      "pos": [
+        40,
+        70
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "FastAPI",
+      "sublabel": "async \u00b7 SSE stream",
+      "pos": [
+        280,
+        70
+      ],
+      "size": [
+        160,
+        64
+      ],
+      "tag": "JWT \u00b7 RBAC \u00b7 rate limit"
+    },
+    {
+      "id": "guard",
+      "type": "security",
+      "label": "Guard + memory",
+      "sublabel": "input guard \u00b7 SQLite",
+      "pos": [
+        280,
+        220
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "supervisor",
+      "type": "backend",
+      "label": "Supervisor",
+      "sublabel": "plans once \u00b7 code routes",
+      "pos": [
+        520,
+        220
+      ],
+      "size": [
+        160,
+        64
+      ],
+      "tag": "LLM + dispatch"
+    },
+    {
+      "id": "response",
+      "type": "backend",
+      "label": "Response + validator",
+      "sublabel": "citations \u00b7 grounding",
+      "pos": [
+        760,
+        220
+      ],
+      "size": [
+        160,
+        64
+      ],
+      "tag": "streamed"
+    },
+    {
+      "id": "langsmith",
+      "type": "cloud",
+      "label": "LangSmith",
+      "sublabel": "every turn traced",
+      "pos": [
+        1000,
+        220
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "retrieval",
+      "type": "backend",
+      "label": "Retrieval agent",
+      "sublabel": "hybrid + rerank",
+      "pos": [
+        280,
+        370
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "research",
+      "type": "backend",
+      "label": "Research agent",
+      "sublabel": "RLM \u00b7 recursive",
+      "pos": [
+        520,
+        370
+      ],
+      "size": [
+        160,
+        64
+      ],
+      "tag": "sub-agents"
+    },
+    {
+      "id": "tools",
+      "type": "backend",
+      "label": "Tool agent",
+      "sublabel": "RBAC \u00b7 approval gate",
+      "pos": [
+        760,
+        370
+      ],
+      "size": [
+        160,
+        64
+      ],
+      "tag": "human approval"
+    },
+    {
+      "id": "pinecone",
+      "type": "database",
+      "label": "Pinecone",
+      "sublabel": "dense + BM25 sparse",
+      "pos": [
+        400,
+        520
+      ],
+      "size": [
+        160,
+        64
+      ],
+      "tag": "namespaces"
+    },
+    {
+      "id": "sandbox",
+      "type": "security",
+      "label": "Python sandbox",
+      "sublabel": "AST allow-list",
+      "pos": [
+        640,
+        520
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "mcp",
+      "type": "external",
+      "label": "MCP server",
+      "sublabel": "enterprise systems",
+      "pos": [
+        880,
+        520
+      ],
+      "size": [
+        160,
+        64
+      ],
+      "tag": "service token"
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "LangGraph",
+      "wraps": [
+        "guard",
+        "supervisor",
+        "response",
+        "retrieval",
+        "research",
+        "tools"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "ui-to-api",
+      "from": "ui",
+      "to": "api",
+      "label": "chat",
+      "variant": "emphasis"
+    },
+    {
+      "id": "api-to-guard",
+      "from": "api",
+      "to": "guard",
+      "label": "verified role",
+      "labelDy": 24
+    },
+    {
+      "id": "guard-to-supervisor",
+      "from": "guard",
+      "to": "supervisor"
+    },
+    {
+      "id": "supervisor-to-response",
+      "from": "supervisor",
+      "to": "response",
+      "label": "evidence",
+      "variant": "emphasis"
+    },
+    {
+      "id": "response-to-api",
+      "from": "response",
+      "to": "api",
+      "label": "answer",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "right"
+    },
+    {
+      "id": "response-to-langsmith",
+      "from": "response",
+      "to": "langsmith",
+      "label": "traces",
+      "variant": "dashed"
+    },
+    {
+      "id": "supervisor-to-retrieval",
+      "from": "supervisor",
+      "to": "retrieval"
+    },
+    {
+      "id": "supervisor-to-research",
+      "from": "supervisor",
+      "to": "research"
+    },
+    {
+      "id": "supervisor-to-tools",
+      "from": "supervisor",
+      "to": "tools"
+    },
+    {
+      "id": "retrieval-to-pinecone",
+      "from": "retrieval",
+      "to": "pinecone",
+      "label": "hybrid",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "research-to-pinecone",
+      "from": "research",
+      "to": "pinecone",
+      "label": "sections",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "research-to-sandbox",
+      "from": "research",
+      "to": "sandbox",
+      "label": "plan",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "tools-to-sandbox",
+      "from": "tools",
+      "to": "sandbox",
+      "label": "analysis",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "tools-to-mcp",
+      "from": "tools",
+      "to": "mcp",
+      "label": "token",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Retrieval",
+      "items": [
+        "Dense + BM25 in one Pinecone query, then rerank",
+        "recall@5 0.919 vs 0.835 dense-only"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Recursive research",
+      "items": [
+        "LLM writes a sandboxed plan; sub-agents recurse",
+        "16/16 payment outages found, ~$0.018 (2026-09-28)"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Security",
+      "items": [
+        "Permissions enforced in code at every layer",
+        "0 access-control leaks across all benchmarks"
+      ]
+    }
+  ]
+}
