@@ -1,105 +1,115 @@
 # Commercial Bank Knowledge Assistant
 
-An enterprise AI assistant that answers employees' questions from internal documents (policies,
-architecture, runbooks, incident reports, product specs, meeting notes) and enterprise systems
-(employee directory, service catalog, incident records). It is built as a multi-agent LangGraph
-system with hybrid RAG, a Recursive Language Model (RLM) research agent, MCP tools, RBAC,
-guardrails, rate limiting, human approval for writes, and full activity streaming.
+**An enterprise RAG assistant that can't be talked out of its permissions.** Multi-agent LangGraph · hybrid Pinecone search · Recursive Language Model (RLM) research agent · MCP tools · RBAC enforced in code. Synthetic data.
 
-> All documents, people and systems are synthetic. "Commercial Bank" is the brand the brief asks
-> the bot to represent; nothing here describes a real organisation.
+| Benchmark | Result |
+|---|---|
+| Retrieval recall@5 | **0.919** hybrid + rerank (dense only 0.835, BM25 only 0.829) |
+| Exact-ID queries (`INC-2026-020`) | dense **0.00** → hybrid **1.00** |
+| Access-control leaks | **0** in every configuration |
+| RLM: "all payment outages last year" | **16/16** found, ~$0.018, 11 LLM calls¹ |
+| Cost and latency per question | **$0.0008, 4–7 s** (24-document research: ~$0.02) |
+| Prompt injection | blocked in **<10 ms**, no LLM call |
+| Tests | **148**, offline, ~5 s |
 
+Live Pinecone, 23 golden questions, re-run 2026-10-01. [Full ablation →](#results)
+<sub>¹ Measured 2026-09-28; root cause right on 14/16. "Last year" is relative to today, so the count drifts (15 on 2026-10-01).</sub>
+
+**Why it is different**
+
+- **RLM, not a bigger context.** The agent writes a sandboxed search plan, reads only the sections it chose, recurses with sub-agents, and counts in code.
+- **Permissions live in code, never in prompts.** Retrieval filters, tool re-checks, MCP level filtering, human approval for writes.
+- **Answers are verified.** Citations must exist and numbers must match their source, even while streaming.
+- **It degrades instead of crashing.** Every dependency failure has a tested fallback you can trigger live.
+- **Attacked by its author.** 9 issues found and fixed with tests; 20 more [documented](#security-review-known-limitations-and-next-steps).
+
+```bash
+cp .env.example .env    # API keys optional: it runs offline without them
+./run.sh                # open http://127.0.0.1:8511, log in as anil / analyst-pass
 ```
-  Streamlit UI ──SSE──► FastAPI ──► LangGraph ──► supervisor ─► retrieval │ research (RLM) │ tools ─► response ─► validator
-   chat + live            auth, RBAC,   checkpointed     plans once      hybrid search   recursive    MCP +      streamed    citations,
-   agent activity         rate limit    per thread       code routes     + rerank        sub-agents   sandbox    draft       grounding, brand
-```
 
-## Contents
-
-1. [Quick start](#quick-start)
-2. [Architecture](#architecture)
-3. [How each requirement is met](#how-each-requirement-is-met)
-4. [Demo script](#demo-script)
-5. [Results](#results)
-6. [Assumptions and trade-offs](#assumptions-and-trade-offs)
-7. [Security review: known limitations and next steps](#security-review-known-limitations-and-next-steps)
-8. [What I would do next](#what-i-would-do-next)
-
-Deeper write-ups: [docs/DESIGN.md](docs/DESIGN.md) (agents, RAG, RLM, memory, models, failure
-handling) and [docs/SECURITY.md](docs/SECURITY.md) (threat model and controls).
+[Architecture](#architecture) · [Requirements map](#how-each-requirement-is-met) · [Demo script](#demo-script) · [Run it: details](#run-it-details) · [Trade-offs](#assumptions-and-trade-offs) · [Design](docs/DESIGN.md) · [Security model](docs/SECURITY.md)
 
 ---
 
-## Quick start
+## Results
 
-**One command: `run.sh`** (needs [uv](https://docs.astral.sh/uv/); installs dependencies on first run)
+Measured on this corpus (58 documents → 378 section chunks) on 2026-09-28, against a live
+Pinecone serverless index (`cb-knowledge`, aws/us-east-1, 384-d dotproduct, 6 namespaces), with
+every turn traced in LangSmith.
 
-```bash
-cp .env.example .env         # add OPENROUTER_API_KEY, PINECONE_API_KEY, LANGSMITH_API_KEY
-./run.sh                     # MCP :8765 + API :8010 + UI :8511  →  open http://127.0.0.1:8511
-```
+**Retrieval recall@5** (`scripts/eval_retrieval.py`, 23 golden questions + 1 access-control negative)
 
-The index is built only when it is needed. `run.sh` first runs `ingest --check`, which verifies:
-- the local index files exist;
-- with a Pinecone key, that the Pinecone index exists and holds as many vectors as the local store.
+| Configuration | Command | Overall | Exact IDs (n=2) | Exact term (n=1) | Paraphrases (n=3) | Standard (n=17) | Access leaks |
+|---|---|---|---|---|---|---|---|
+| Dense only (α=1.0) | `--alpha 1.0 --no-rerank` | 0.835 | **0.00** | 1.00 | 0.67 | 0.95 | 0 |
+| BM25 only (α=0.0) | `--alpha 0.0 --no-rerank` | 0.829 | 1.00 | 1.00 | **0.00** | 0.95 | 0 |
+| Hybrid (α=0.6) | `--alpha 0.6 --no-rerank` | 0.872 | 1.00 | 1.00 | 0.33 | 0.95 | 0 |
+| **Hybrid + cross-encoder rerank** | `--alpha 0.6` | **0.919** | 1.00 | 1.00 | 0.67 | 0.95 | 0 |
 
-It builds only if one of these checks fails.
-
-| Command | What it does |
-|---|---|
-| `./run.sh` | start everything; build the index first only if the check fails |
-| `./run.sh --build` | force a rebuild (after editing `data/corpus`), then start |
-| `./run.sh build` / `./run.sh check` | only build / only report index status |
-| `./run.sh ask --user anil "…"` | one question in the terminal, printing the full activity stream |
-| `./run.sh test` / `./run.sh eval` | offline tests / retrieval eval |
-| `--env-file PATH` | read keys from another file instead of `./.env` |
-
-- **Ports:** override with `API_PORT`, `UI_PORT` and `MCP_PORT`.
-- **Index and trace project:** set with `KB_PINECONE_INDEX` (default `cb-knowledge`) and `KB_LANGSMITH_PROJECT`. These are applied *after* the env file is loaded, so a borrowed env file can never point the app at another project's index.
-- **Secrets:** the API refuses to start without a strong `JWT_SECRET` and `MCP_SERVICE_TOKEN` (32+ bytes, not placeholders), and the MCP server refuses to start without the token. When either is unset, `run.sh` generates a random one for that run and says so; set your own to keep sessions across restarts. Docker Compose requires both in `.env` (`openssl rand -hex 32`).
-- **Without keys:** it runs on the local store, with no LLM answers (extractive fallback) and no tracing.
-- **Logs:** written to `logs/`. Ctrl+C stops all three services.
-
-**Manual start** (what `run.sh` does)
+This is an ablation: same golden set, one variable changed per row. Every number was reproduced
+unchanged on 2026-10-01 against live Pinecone, after the security-review fixes landed, so those
+fixes did not move retrieval quality. To re-run a row:
 
 ```bash
-uv sync
-export JWT_SECRET=$(openssl rand -hex 32) MCP_SERVICE_TOKEN=$(openssl rand -hex 32)   # both required
-uv run python -m kb_assistant.retrieval.ingest --if-missing     # build only when needed
-uv run python -m kb_assistant.mcp_server.server                 # terminal 1: MCP  :8765
-uv run uvicorn kb_assistant.api.main:app --port 8010            # terminal 2: API  :8010/docs
-API_URL=http://127.0.0.1:8010 uv run streamlit run src/kb_assistant/ui/streamlit_app.py --server.port 8511
+uv run python scripts/eval_retrieval.py --alpha 0.6            # add --no-rerank or change --alpha
 ```
 
-**Docker Compose**
+How to read it:
+- **Look at the breakdown, not just the overall.** Dense-only and BM25-only score almost the same
+  overall (0.835 vs 0.829), but they fail on opposite questions. Dense search cannot find
+  `INC-2026-020` by its id. BM25 cannot match "message backlog on the event stream" to "Kafka
+  consumer lag". Hybrid fixes the first failure, and reranking recovers the second.
+- **Access-control leaks: 0 in every configuration.** Tuning quality never weakened the access filter.
+- **Expected low: the multi-document question.** "Recurring root causes" scores 0.13. Top-5
+  retrieval cannot hold the 14 in-window payment incidents, so this question is routed to the RLM
+  research agent instead.
+- **Known gap: one paraphrase.** "Employees could not sign in to any internal application in the
+  morning" (expected `INC-2026-018`) scores 0.00 in every configuration. Query expansion, or a
+  synonym-rich contextual header for that chunk, is the next thing to try.
+- **The set is small (23 questions, 3 paraphrases),** so one question moves a category by 0.33.
+  Treat these numbers as directional. Thumbs-down feedback grows the set (`scripts/export_feedback.py`).
 
-```bash
-cp .env.example .env     # then set JWT_SECRET and MCP_SERVICE_TOKEN to `openssl rand -hex 32` values
-docker compose up --build                                # UI http://localhost:8501 (MCP is not published)
-```
+**Pinecone parity.** All four configurations give identical numbers on live Pinecone and on the
+in-process local store (0.919 / 0.872 / 0.835 / 0.829), which confirms that the two backends compute
+the same hybrid score. That matters because the local store is the fallback when Pinecone is down.
 
-**Without the UI**, one command prints the whole activity stream for a question:
+**RLM research accuracy** (`scripts/eval_research.py`). The MCP incident records are an answer key
+for the headline question, *"summarize all payment-failure outages in the last year and identify
+recurring root causes"*. Two runs are shown, because LLM output varies between identical runs:
 
-```bash
-uv run python scripts/ask.py --user anil "Summarize all outage reports related to payment failures during the last year and identify recurring root causes."
-```
+| Metric | Run 1 (local store) | Run 2 (Pinecone, after fixes) |
+|---|---|---|
+| Recall: in-window payment incidents found | 15 / 16 | **16 / 16** |
+| Precision: counted incidents that are payment-related and in the window | 15 / 15 | **16 / 16** |
+| Root-cause category correct | 14 / 15 | 14 / 16 |
+| Cost | 16 LLM calls, ~$0.02 | 11 LLM calls, ~$0.018 |
 
-**Tests and evals** (offline, no API keys):
+The remaining misclassifications are borderline, e.g. a NationalSwitch timeout labelled
+`third_party_outage`.
 
-```bash
-uv run pytest -q                       # 148 tests: guards, RBAC, MCP auth, sandbox, retrieval, graph end-to-end, API
-uv run python scripts/eval_retrieval.py  # recall@5 + access-control leak check on data/eval/golden.jsonl
-uv run python scripts/eval_research.py   # RLM vs ground truth (needs an LLM key, ~$0.02)
-```
+Two failures found this way were fixed in code, not in the prompt:
+- **Supervisor department filter.** The supervisor added `department=payments` for "payment
+  failures", which hid the platform-owned incidents. It is now dropped unless the user names a department.
+- **Plan widened the date range.** A retried plan widened the date range to find more documents.
+  The window is now enforced after the plan runs.
+- **Valid citations rejected as hallucinated.** With 24 documents, the evidence list was capped
+  before every chunk a finding cited was in it, so the validator rejected real citations. Cited
+  chunks are now kept first, and the research report tells the response agent which chunk id to
+  cite for each document.
 
-**Demo accounts**
+**Cost and latency per turn**, measured through OpenRouter, rounded:
 
-| User | Password | Role | Documents | Tools |
+| Turn type | LLM calls | Tokens in/out | Cost | Wall time |
 |---|---|---|---|---|
-| `vera` | `viewer-pass` | viewer | public, internal | knowledge_search |
-| `anil` | `analyst-pass` | analyst | + confidential | + employee_directory, service_catalog, incident_records, python_analysis |
-| `amal` | `admin-pass` | admin | + restricted | + update_service_status (needs human approval), security_audit_log, fault injection |
+| Knowledge question | 2 | ~1.9k / 0.15k | ~$0.0008 | 4–7 s |
+| Tools (MCP + analysis) | 5–6 | ~8–13k / 0.5k | ~$0.0025 | 10–13 s |
+| RLM research (24 documents) | 11–16 | ~20–30k / 5–6k | ~$0.015–0.02 | 40–75 s |
+| Blocked injection | 0 | 0 | $0 | <10 ms |
+
+**Tests**: 148 passing offline in ~5 s. Each guard has a test that forces the failure it exists to
+catch. As a check on the tests themselves, I disabled the RBAC check, then the access filter; each
+time a test failed.
 
 ---
 
@@ -237,84 +247,75 @@ it creates a public read-only link.
 
 ---
 
-## Results
+## Run it: details
 
-Measured on this corpus (58 documents → 378 section chunks) on 2026-09-28, against a live
-Pinecone serverless index (`cb-knowledge`, aws/us-east-1, 384-d dotproduct, 6 namespaces), with
-every turn traced in LangSmith.
-
-**Retrieval recall@5** (`scripts/eval_retrieval.py`, 23 golden questions + 1 access-control negative)
-
-| Configuration | Command | Overall | Exact IDs (n=2) | Exact term (n=1) | Paraphrases (n=3) | Standard (n=17) | Access leaks |
-|---|---|---|---|---|---|---|---|
-| Dense only (α=1.0) | `--alpha 1.0 --no-rerank` | 0.835 | **0.00** | 1.00 | 0.67 | 0.95 | 0 |
-| BM25 only (α=0.0) | `--alpha 0.0 --no-rerank` | 0.829 | 1.00 | 1.00 | **0.00** | 0.95 | 0 |
-| Hybrid (α=0.6) | `--alpha 0.6 --no-rerank` | 0.872 | 1.00 | 1.00 | 0.33 | 0.95 | 0 |
-| **Hybrid + cross-encoder rerank** | `--alpha 0.6` | **0.919** | 1.00 | 1.00 | 0.67 | 0.95 | 0 |
-
-This is an ablation: same golden set, one variable changed per row. Every number was reproduced
-unchanged on 2026-10-01 against live Pinecone, after the security-review fixes landed, so those
-fixes did not move retrieval quality. To re-run a row:
+The two-line version is at the top of this page. **`run.sh`** (needs [uv](https://docs.astral.sh/uv/); installs dependencies on first run)
 
 ```bash
-uv run python scripts/eval_retrieval.py --alpha 0.6            # add --no-rerank or change --alpha
+cp .env.example .env         # add OPENROUTER_API_KEY, PINECONE_API_KEY, LANGSMITH_API_KEY
+./run.sh                     # MCP :8765 + API :8010 + UI :8511  →  open http://127.0.0.1:8511
 ```
 
-How to read it:
-- **Look at the breakdown, not just the overall.** Dense-only and BM25-only score almost the same
-  overall (0.835 vs 0.829), but they fail on opposite questions. Dense search cannot find
-  `INC-2026-020` by its id. BM25 cannot match "message backlog on the event stream" to "Kafka
-  consumer lag". Hybrid fixes the first failure, and reranking recovers the second.
-- **Access-control leaks: 0 in every configuration.** Tuning quality never weakened the access filter.
-- **Expected low: the multi-document question.** "Recurring root causes" scores 0.13. Top-5
-  retrieval cannot hold the 14 in-window payment incidents, so this question is routed to the RLM
-  research agent instead.
-- **Known gap: one paraphrase.** "Employees could not sign in to any internal application in the
-  morning" (expected `INC-2026-018`) scores 0.00 in every configuration. Query expansion, or a
-  synonym-rich contextual header for that chunk, is the next thing to try.
-- **The set is small (23 questions, 3 paraphrases),** so one question moves a category by 0.33.
-  Treat these numbers as directional. Thumbs-down feedback grows the set (`scripts/export_feedback.py`).
+The index is built only when it is needed. `run.sh` first runs `ingest --check`, which verifies:
+- the local index files exist;
+- with a Pinecone key, that the Pinecone index exists and holds as many vectors as the local store.
 
-**Pinecone parity.** All four configurations give identical numbers on live Pinecone and on the
-in-process local store (0.919 / 0.872 / 0.835 / 0.829), which confirms that the two backends compute
-the same hybrid score. That matters because the local store is the fallback when Pinecone is down.
+It builds only if one of these checks fails.
 
-**RLM research accuracy** (`scripts/eval_research.py`). The MCP incident records are an answer key
-for the headline question, *"summarize all payment-failure outages in the last year and identify
-recurring root causes"*. Two runs are shown, because LLM output varies between identical runs:
+| Command | What it does |
+|---|---|
+| `./run.sh` | start everything; build the index first only if the check fails |
+| `./run.sh --build` | force a rebuild (after editing `data/corpus`), then start |
+| `./run.sh build` / `./run.sh check` | only build / only report index status |
+| `./run.sh ask --user anil "…"` | one question in the terminal, printing the full activity stream |
+| `./run.sh test` / `./run.sh eval` | offline tests / retrieval eval |
+| `--env-file PATH` | read keys from another file instead of `./.env` |
 
-| Metric | Run 1 (local store) | Run 2 (Pinecone, after fixes) |
-|---|---|---|
-| Recall: in-window payment incidents found | 15 / 16 | **16 / 16** |
-| Precision: counted incidents that are payment-related and in the window | 15 / 15 | **16 / 16** |
-| Root-cause category correct | 14 / 15 | 14 / 16 |
-| Cost | 16 LLM calls, ~$0.02 | 11 LLM calls, ~$0.018 |
+- **Ports:** override with `API_PORT`, `UI_PORT` and `MCP_PORT`.
+- **Index and trace project:** set with `KB_PINECONE_INDEX` (default `cb-knowledge`) and `KB_LANGSMITH_PROJECT`. These are applied *after* the env file is loaded, so a borrowed env file can never point the app at another project's index.
+- **Secrets:** the API refuses to start without a strong `JWT_SECRET` and `MCP_SERVICE_TOKEN` (32+ bytes, not placeholders), and the MCP server refuses to start without the token. When either is unset, `run.sh` generates a random one for that run and says so; set your own to keep sessions across restarts. Docker Compose requires both in `.env` (`openssl rand -hex 32`).
+- **Without keys:** it runs on the local store, with no LLM answers (extractive fallback) and no tracing.
+- **Logs:** written to `logs/`. Ctrl+C stops all three services.
 
-The remaining misclassifications are borderline, e.g. a NationalSwitch timeout labelled
-`third_party_outage`.
+**Manual start** (what `run.sh` does)
 
-Two failures found this way were fixed in code, not in the prompt:
-- **Supervisor department filter.** The supervisor added `department=payments` for "payment
-  failures", which hid the platform-owned incidents. It is now dropped unless the user names a department.
-- **Plan widened the date range.** A retried plan widened the date range to find more documents.
-  The window is now enforced after the plan runs.
-- **Valid citations rejected as hallucinated.** With 24 documents, the evidence list was capped
-  before every chunk a finding cited was in it, so the validator rejected real citations. Cited
-  chunks are now kept first, and the research report tells the response agent which chunk id to
-  cite for each document.
+```bash
+uv sync
+export JWT_SECRET=$(openssl rand -hex 32) MCP_SERVICE_TOKEN=$(openssl rand -hex 32)   # both required
+uv run python -m kb_assistant.retrieval.ingest --if-missing     # build only when needed
+uv run python -m kb_assistant.mcp_server.server                 # terminal 1: MCP  :8765
+uv run uvicorn kb_assistant.api.main:app --port 8010            # terminal 2: API  :8010/docs
+API_URL=http://127.0.0.1:8010 uv run streamlit run src/kb_assistant/ui/streamlit_app.py --server.port 8511
+```
 
-**Cost and latency per turn**, measured through OpenRouter, rounded:
+**Docker Compose**
 
-| Turn type | LLM calls | Tokens in/out | Cost | Wall time |
+```bash
+cp .env.example .env     # then set JWT_SECRET and MCP_SERVICE_TOKEN to `openssl rand -hex 32` values
+docker compose up --build                                # UI http://localhost:8501 (MCP is not published)
+```
+
+**Without the UI**, one command prints the whole activity stream for a question:
+
+```bash
+uv run python scripts/ask.py --user anil "Summarize all outage reports related to payment failures during the last year and identify recurring root causes."
+```
+
+**Tests and evals** (offline, no API keys):
+
+```bash
+uv run pytest -q                       # 148 tests: guards, RBAC, MCP auth, sandbox, retrieval, graph end-to-end, API
+uv run python scripts/eval_retrieval.py  # recall@5 + access-control leak check on data/eval/golden.jsonl
+uv run python scripts/eval_research.py   # RLM vs ground truth (needs an LLM key, ~$0.02)
+```
+
+**Demo accounts**
+
+| User | Password | Role | Documents | Tools |
 |---|---|---|---|---|
-| Knowledge question | 2 | ~1.9k / 0.15k | ~$0.0008 | 4–7 s |
-| Tools (MCP + analysis) | 5–6 | ~8–13k / 0.5k | ~$0.0025 | 10–13 s |
-| RLM research (24 documents) | 11–16 | ~20–30k / 5–6k | ~$0.015–0.02 | 40–75 s |
-| Blocked injection | 0 | 0 | $0 | <10 ms |
-
-**Tests**: 148 passing offline in ~5 s. Each guard has a test that forces the failure it exists to
-catch. As a check on the tests themselves, I disabled the RBAC check, then the access filter; each
-time a test failed.
+| `vera` | `viewer-pass` | viewer | public, internal | knowledge_search |
+| `anil` | `analyst-pass` | analyst | + confidential | + employee_directory, service_catalog, incident_records, python_analysis |
+| `amal` | `admin-pass` | admin | + restricted | + update_service_status (needs human approval), security_audit_log, fault injection |
 
 ---
 
@@ -358,6 +359,8 @@ time a test failed.
   and the MCP incident records were generated from one source so they agree; each record carries its
   document's `access_level` (a test keeps them in sync).
 
+---
+
 ## Security review: known limitations and next steps
 
 I attacked my own build with adversarial probes. Eight items were fixed, each with a regression test:
@@ -387,6 +390,8 @@ risk and the planned fix. Items marked *reproduced* were demonstrated against th
 - **Card, IBAN and national-ID detection.** A 16-digit card number was mislabelled `[phone redacted]` and an IBAN passed through (*reproduced*); nothing is detected on input, so pasted customer data reaches the LLM and LangSmith. Fix: Luhn-validated card numbers, IBAN and national-ID detection on input and output for every role.
 - **Canary.** It is a constant in a public repo and an exact-substring match, so an encoded or spaced copy is not detected (*reproduced*). Fix: a random per-process canary plus an n-gram overlap check against the system prompt.
 - **LangSmith content.** Traces contain full prompts, including restricted documents and any PII. Fix: an anonymizer that masks cards, emails and phones (not blanket hiding, because the evaluator needs readable traces), or self-hosted LangSmith.
+
+---
 
 ## What I would do next
 
