@@ -254,6 +254,17 @@ async def test_sandbox_rejects_dangerous_code(code):
         await run_sandboxed(code, {})
 
 
+async def test_python_analysis_cannot_modify_the_callers_tool_data(services, analyst):
+    """Model-written analysis code must not be able to rewrite earlier tool results in place."""
+    record = {"incident_id": "INC-1", "customer_impact_count": 15000}
+    datasets = {"incident_records": {"incidents": [record]}}
+    ctx = ToolContext(principal=analyst, services=services, datasets=datasets)
+    code = "datasets['incident_records']['incidents'][0]['customer_impact_count'] = 0\nresult = 1"
+    result = await services.executor.execute("python_analysis", {"code": code}, ctx)
+    assert result.ok, result.content
+    assert record["customer_impact_count"] == 15000
+
+
 async def test_sandbox_stops_runaway_loops():
     with pytest.raises(SandboxError, match="budget|timed out|range"):
         await run_sandboxed("x = 0\nfor i in range(10000):\n    for j in range(10000):\n        x += 1\nresult = x", {},

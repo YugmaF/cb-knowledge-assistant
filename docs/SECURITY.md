@@ -69,6 +69,7 @@ The layers below it hold even when a pattern misses:
   - an AST allow-list that forbids imports, `while`, `def` and `class`, and any `_`-prefixed name or attribute;
   - allow-lists for builtins and for attributes, so `str.format` is not callable (it can reach `__class__`);
   - a line-event budget, a capped `range`, and a timeout.
+  - it runs on a deep copy of earlier tool results, so model-written code cannot rewrite them in place.
 - Every tool call has a timeout, and MCP calls sit behind a circuit breaker.
 - Tool output is truncated (6,000 characters) and sanitised before the model sees it.
 

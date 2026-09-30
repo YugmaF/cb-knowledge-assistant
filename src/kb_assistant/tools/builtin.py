@@ -15,6 +15,7 @@ what it sends back, so the two can never drift apart.
 
 from __future__ import annotations
 
+import copy
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -106,8 +107,10 @@ class PythonAnalysisArgs(BaseModel):
 
 
 async def python_analysis(args: PythonAnalysisArgs, ctx: ToolContext) -> dict:
+    # A copy: model-written code can assign into what it is given, and must not rewrite the real
+    # tool results that later steps (and the answer) rely on.
     outcome = await run_sandboxed(
-        args.code, {"datasets": ctx.datasets}, timeout_s=ctx.services.settings.sandbox_timeout_s
+        args.code, {"datasets": copy.deepcopy(ctx.datasets)}, timeout_s=ctx.services.settings.sandbox_timeout_s
     )
     return {"result": outcome.result, "printed": outcome.output, "steps": outcome.lines_executed}
 
