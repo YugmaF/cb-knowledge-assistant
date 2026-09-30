@@ -80,6 +80,11 @@ The layers below it hold even when a pattern misses:
 | admin (security_audit_log, fault injection) | | | ✓ |
 | documents | public, internal | + confidential | + restricted |
 
+MCP incident records carry the access level of their document. The caller's levels come from the verified
+principal (never from the model) and are sent to the MCP server, which filters on them and treats a
+record with no level as restricted; the tool filters again on the way back. A call with no levels sees
+only public records.
+
 ## Brand guardrails
 
 The bot speaks as Commercial Bank to its own staff.

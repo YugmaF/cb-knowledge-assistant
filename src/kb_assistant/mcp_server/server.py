@@ -85,11 +85,18 @@ def query_incidents(
     since: str | None = None,
     until: str | None = None,
     limit: int = 100,
+    access_levels: list[str] | None = None,
 ) -> dict:
-    """Query structured incident records. Dates are ISO (YYYY-MM-DD) and compare against opened_at."""
+    """Query structured incident records. Dates are ISO (YYYY-MM-DD) and compare against opened_at.
+
+    Each record has the access level of its document. `access_levels` are the levels the caller may
+    read (the API sends them after RBAC); without them only public records are returned, and a record
+    with no level is treated as restricted."""
+    allowed = set(access_levels or ["public"])
     rows = [
         i for i in INCIDENTS
-        if (not service_id or i["service_id"] == service_id)
+        if i.get("access_level", "restricted") in allowed
+        and (not service_id or i["service_id"] == service_id)
         and (not root_cause_category or i["root_cause_category"] == root_cause_category)
         and (payment_related is None or i["payment_related"] == payment_related)
         and (not since or i["opened_at"][:10] >= since)

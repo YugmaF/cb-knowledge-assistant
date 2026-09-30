@@ -9,7 +9,8 @@
     "resolved_at": "2025-05-26T11:05:00+05:30",
     "root_cause_category": "db_pool_exhaustion",
     "payment_related": true,
-    "customer_impact_count": 4200
+    "customer_impact_count": 4200,
+    "access_level": "internal"
   },
   {
     "incident_id": "INC-2025-006",
@@ -21,7 +22,8 @@
     "resolved_at": "2025-06-14T02:47:00+05:30",
     "root_cause_category": "tls_certificate_expiry",
     "payment_related": true,
-    "customer_impact_count": 18500
+    "customer_impact_count": 18500,
+    "access_level": "internal"
   },
   {
     "incident_id": "INC-2025-009",
@@ -33,7 +35,8 @@
     "resolved_at": "2025-07-08T15:32:00+05:30",
     "root_cause_category": "switch_timeout",
     "payment_related": true,
-    "customer_impact_count": 6300
+    "customer_impact_count": 6300,
+    "access_level": "internal"
   },
   {
     "incident_id": "INC-2025-011",
@@ -45,7 +48,8 @@
     "resolved_at": "2025-08-19T10:58:00+05:30",
     "root_cause_category": "bad_config_deploy",
     "payment_related": true,
-    "customer_impact_count": 950
+    "customer_impact_count": 950,
+    "access_level": "internal"
   },
   {
     "incident_id": "INC-2025-013",
@@ -57,7 +61,8 @@
     "resolved_at": "2025-09-10T11:20:00+05:30",
     "root_cause_category": "other",
     "payment_related": false,
-    "customer_impact_count": 0
+    "customer_impact_count": 0,
+    "access_level": "internal"
   },
   {
     "incident_id": "INC-2025-015",
@@ -69,7 +74,8 @@
     "resolved_at": "2025-09-30T18:05:00+05:30",
     "root_cause_category": "db_pool_exhaustion",
     "payment_related": true,
-    "customer_impact_count": 7800
+    "customer_impact_count": 7800,
+    "access_level": "internal"
   },
   {
     "incident_id": "INC-2025-016",
@@ -81,7 +87,8 @@
     "resolved_at": "2025-10-07T09:15:00+05:30",
     "root_cause_category": "other",
     "payment_related": false,
-    "customer_impact_count": 22000
+    "customer_impact_count": 22000,
+    "access_level": "internal"
   },
   {
     "incident_id": "INC-2025-018",
@@ -93,7 +100,8 @@
     "resolved_at": "2025-10-22T17:40:00+05:30",
     "root_cause_category": "kafka_consumer_lag",
     "payment_related": true,
-    "customer_impact_count": 3100
+    "customer_impact_count": 3100,
+    "access_level": "internal"
   },
   {
     "incident_id": "INC-2025-020",
@@ -105,7 +113,8 @@
     "resolved_at": "2025-11-03T10:31:00+05:30",
     "root_cause_category": "tls_certificate_expiry",
     "payment_related": true,
-    "customer_impact_count": 21400
+    "customer_impact_count": 21400,
+    "access_level": "internal"
   },
   {
     "incident_id": "INC-2025-022",
@@ -117,7 +126,8 @@
     "resolved_at": "2025-11-14T15:30:00+05:30",
     "root_cause_category": "other",
     "payment_related": false,
-    "customer_impact_count": 0
+    "customer_impact_count": 0,
+    "access_level": "confidential"
   },
   {
     "incident_id": "INC-2025-023",
@@ -129,7 +139,8 @@
     "resolved_at": "2025-11-25T12:50:00+05:30",
     "root_cause_category": "db_pool_exhaustion",
     "payment_related": true,
-    "customer_impact_count": 35000
+    "customer_impact_count": 35000,
+    "access_level": "internal"
   },
   {
     "incident_id": "INC-2025-025",
@@ -141,7 +152,8 @@
     "resolved_at": "2025-12-09T20:05:00+05:30",
     "root_cause_category": "switch_timeout",
     "payment_related": true,
-    "customer_impact_count": 9100
+    "customer_impact_count": 9100,
+    "access_level": "internal"
   },
   {
     "incident_id": "INC-2025-027",
@@ -153,7 +165,8 @@
     "resolved_at": "2025-12-18T13:40:00+05:30",
     "root_cause_category": "other",
     "payment_related": false,
-    "customer_impact_count": 0
+    "customer_impact_count": 0,
+    "access_level": "internal"
   },
   {
     "incident_id": "INC-2025-029",
@@ -165,7 +178,8 @@
     "resolved_at": "2025-12-31T22:25:00+05:30",
     "root_cause_category": "bad_config_deploy",
     "payment_related": true,
-    "customer_impact_count": 5400
+    "customer_impact_count": 5400,
+    "access_level": "internal"
   },
   {
     "incident_id": "INC-2026-002",
@@ -177,7 +191,8 @@
     "resolved_at": "2026-01-12T14:35:00+05:30",
     "root_cause_category": "dns_misconfig",
     "payment_related": true,
-    "customer_impact_count": 8700
+    "customer_impact_count": 8700,
+    "access_level": "internal"
   },
   {
     "incident_id": "INC-2026-004",
@@ -189,7 +204,8 @@
     "resolved_at": "2026-01-26T10:40:00+05:30",
     "root_cause_category": "db_pool_exhaustion",
     "payment_related": true,
-    "customer_impact_count": 12600
+    "customer_impact_count": 12600,
+    "access_level": "internal"
   },
   {
     "incident_id": "INC-2026-006",
@@ -201,7 +217,8 @@
     "resolved_at": "2026-02-10T14:10:00+05:30",
     "root_cause_category": "other",
     "payment_related": false,
-    "customer_impact_count": 0
+    "customer_impact_count": 0,
+    "access_level": "internal"
   },
   {
     "incident_id": "INC-2026-007",
@@ -213,7 +230,8 @@
     "resolved_at": "2026-02-17T06:40:00+05:30",
     "root_cause_category": "hsm_firmware",
     "payment_related": true,
-    "customer_impact_count": 6900
+    "customer_impact_count": 6900,
+    "access_level": "confidential"
   },
   {
     "incident_id": "INC-2026-009",
@@ -225,7 +243,8 @@
     "resolved_at": "2026-03-04T13:05:00+05:30",
     "root_cause_category": "switch_timeout",
     "payment_related": true,
-    "customer_impact_count": 7400
+    "customer_impact_count": 7400,
+    "access_level": "internal"
   },
   {
     "incident_id": "INC-2026-011",
@@ -237,7 +256,8 @@
     "resolved_at": "2026-03-19T23:10:00+05:30",
     "root_cause_category": "other",
     "payment_related": false,
-    "customer_impact_count": 15000
+    "customer_impact_count": 15000,
+    "access_level": "confidential"
   },
   {
     "incident_id": "INC-2026-012",
@@ -249,7 +269,8 @@
     "resolved_at": "2026-04-02T07:25:00+05:30",
     "root_cause_category": "tls_certificate_expiry",
     "payment_related": true,
-    "customer_impact_count": 11800
+    "customer_impact_count": 11800,
+    "access_level": "internal"
   },
   {
     "incident_id": "INC-2026-014",
@@ -261,7 +282,8 @@
     "resolved_at": "2026-04-24T13:30:00+05:30",
     "root_cause_category": "bad_config_deploy",
     "payment_related": true,
-    "customer_impact_count": 9800
+    "customer_impact_count": 9800,
+    "access_level": "internal"
   },
   {
     "incident_id": "INC-2026-016",
@@ -273,7 +295,8 @@
     "resolved_at": "2026-05-13T18:00:00+05:30",
     "root_cause_category": "other",
     "payment_related": false,
-    "customer_impact_count": 0
+    "customer_impact_count": 0,
+    "access_level": "restricted"
   },
   {
     "incident_id": "INC-2026-018",
@@ -285,7 +308,8 @@
     "resolved_at": "2026-05-29T09:45:00+05:30",
     "root_cause_category": "other",
     "payment_related": false,
-    "customer_impact_count": 48000
+    "customer_impact_count": 48000,
+    "access_level": "internal"
   },
   {
     "incident_id": "INC-2026-020",
@@ -297,7 +321,8 @@
     "resolved_at": "2026-06-16T14:55:00+05:30",
     "root_cause_category": "kafka_consumer_lag",
     "payment_related": true,
-    "customer_impact_count": 4600
+    "customer_impact_count": 4600,
+    "access_level": "internal"
   },
   {
     "incident_id": "INC-2026-022",
@@ -309,7 +334,8 @@
     "resolved_at": "2026-07-07T11:50:00+05:30",
     "root_cause_category": "switch_timeout",
     "payment_related": true,
-    "customer_impact_count": 8200
+    "customer_impact_count": 8200,
+    "access_level": "internal"
   },
   {
     "incident_id": "INC-2026-024",
@@ -321,7 +347,8 @@
     "resolved_at": "2026-07-21T09:25:00+05:30",
     "root_cause_category": "other",
     "payment_related": false,
-    "customer_impact_count": 0
+    "customer_impact_count": 0,
+    "access_level": "internal"
   },
   {
     "incident_id": "INC-2026-026",
@@ -333,7 +360,8 @@
     "resolved_at": "2026-08-11T15:50:00+05:30",
     "root_cause_category": "bad_config_deploy",
     "payment_related": true,
-    "customer_impact_count": 6100
+    "customer_impact_count": 6100,
+    "access_level": "internal"
   },
   {
     "incident_id": "INC-2026-028",
@@ -345,7 +373,8 @@
     "resolved_at": "2026-08-25T11:40:00+05:30",
     "root_cause_category": "db_pool_exhaustion",
     "payment_related": true,
-    "customer_impact_count": 28000
+    "customer_impact_count": 28000,
+    "access_level": "internal"
   },
   {
     "incident_id": "INC-2026-031",
@@ -357,6 +386,7 @@
     "resolved_at": null,
     "root_cause_category": "other",
     "payment_related": false,
-    "customer_impact_count": 0
+    "customer_impact_count": 0,
+    "access_level": "internal"
   }
 ]

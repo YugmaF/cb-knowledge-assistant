@@ -184,7 +184,7 @@ flowchart LR
 | **Input validation** | `api/schemas.py`, tool arg models, `sanitize_retrieved` | This covers user requests, tool parameters and retrieved content. |
 | **Guardrails** | `tools/registry.py`, `agents/validator.py` | It blocks unsafe tool execution, unauthorised access, hallucinated citations and invalid responses, and enforces brand rules. |
 | **Authentication (Option A)** | `security/auth.py` | Hardcoded users, PBKDF2 hashes, HS256 JWT, role re-read from the user table on every request. |
-| **RBAC** | `security/rbac.py` | Tool permissions are enforced by the executor. Document access levels are enforced by the retriever's filter, a post-filter and the catalog. |
+| **RBAC** | `security/rbac.py` | Tool permissions are enforced by the executor. Document access levels are enforced by the retriever's filter, a post-filter and the catalog. MCP incident records carry their document's access level and are filtered by it (server and tool), so an analyst cannot read a restricted incident through MCP. |
 | **Token-bucket rate limiting** | `security/rate_limit.py` | Per user, per-role thresholds set by env vars, 429 + `Retry-After`, per-IP login limit. |
 | **Error handling / graceful degradation** | see [Failure handling](docs/DESIGN.md#failure-handling) | LLM, vector DB, MCP, tool timeout and invalid requests each have a tested fallback. They can be forced live with fault injection. |
 | **Bonus: HITL, reranking, long-term memory, feedback loop, Docker Compose, multi-agent failure handling** | `agents/tool_agent.py`, `retrieval/rerank.py`, `agents/memory.py`, `scripts/export_feedback.py`, `docker-compose.yml`, DESIGN | All implemented. |
@@ -333,7 +333,8 @@ time a test failed.
   which access levels the caller has. The server trusts that, so anything holding the token can
   impersonate any role. Production would propagate a signed per-user identity instead.
 - **Synthetic data**: 58 documents, 30 incidents, 25 employees, 13 services. The incident markdown
-  and the MCP incident records were generated from one source so they agree.
+  and the MCP incident records were generated from one source so they agree; each record carries its
+  document's `access_level` (a test keeps them in sync).
 
 ## What I would do next
 

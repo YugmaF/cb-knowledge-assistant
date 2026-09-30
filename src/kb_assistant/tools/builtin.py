@@ -84,7 +84,14 @@ class IncidentRecordsArgs(BaseModel):
 
 
 async def incident_records(args: IncidentRecordsArgs, ctx: ToolContext) -> dict:
-    return await ctx.services.mcp.call("query_incidents", args.model_dump(exclude_none=True))
+    """Incident records have the access level of their document. The caller's levels come from the
+    verified principal (never from the model), are sent to the server, and are applied again here."""
+    data = await ctx.services.mcp.call(
+        "query_incidents", {**args.model_dump(exclude_none=True), "access_levels": sorted(ctx.principal.access_levels)})
+    if not isinstance(data, dict):
+        return data
+    readable = [i for i in data.get("incidents", []) if ctx.principal.can_read(i.get("access_level", "restricted"))]
+    return {**data, "incidents": readable, "count": len(readable)}
 
 
 class PythonAnalysisArgs(BaseModel):
