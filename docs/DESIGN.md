@@ -24,7 +24,7 @@ how to run it.
 
 | Agent | LLM? | Responsibility | Output (state keys) |
 |---|---|---|---|
-| input_guard | no | Normalise, detect injection / exfiltration / tool abuse, block | `guard`, `blocked` |
+| input_guard | no | Normalise; block override / prompt exfiltration; flag other suspicious phrasing | `guard`, `blocked`, `security_flags` |
 | load_memory | no | Summary, pinned questions, user facts, recalled episodes | `memory_context` |
 | supervisor | yes (cheap) | Intent, standalone query, plan (≤3 steps), filters, user facts | `decision`, `plan` |
 | dispatch | no | Walk the plan | `current_step` |

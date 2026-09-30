@@ -1,6 +1,6 @@
 """Deterministic guards for the three untrusted inputs, plus the output.
 
-    user message     -> check_user_input      (instruction override, exfiltration, tool abuse)
+    user message     -> check_user_input      (blocks override and prompt exfiltration; flags the rest)
     retrieved text   -> sanitize_retrieved     (indirect injection hidden in documents)
     model output     -> check_output           (leaked prompt, unknown URLs, PII, brand rules)
 
@@ -21,6 +21,12 @@ PROMPT_CANARY = "cb-canary-5e1f9a"
 
 _ZERO_WIDTH = re.compile(r"[​-‏⁠-⁤﻿]")
 _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+# Only these categories stop a message. Every other match is recorded as a flag and the message goes
+# on: the caller's role comes from the JWT and RBAC is enforced in code, so claiming to be an admin,
+# or mentioning approvals, exports or URLs, changes nothing by itself, while blocking on them
+# rejected ordinary banking questions ("how do I escalate this approval?").
+HARD_BLOCK = frozenset({"instruction_override", "prompt_exfiltration"})
 
 # (category, pattern). Categories map to the three threats the brief names.
 _INPUT_RULES: list[tuple[str, re.Pattern[str]]] = [
@@ -92,8 +98,9 @@ def normalize(text: str) -> str:
 class GuardResult:
     allowed: bool
     text: str
-    categories: list[str] = field(default_factory=list)
+    categories: list[str] = field(default_factory=list)  # hard-block categories: why it was blocked
     reasons: list[str] = field(default_factory=list)
+    flags: list[str] = field(default_factory=list)       # soft matches: recorded, message continues
 
 
 def check_user_input(message: str, max_chars: int) -> GuardResult:
@@ -104,13 +111,14 @@ def check_user_input(message: str, max_chars: int) -> GuardResult:
         return GuardResult(False, text, ["invalid_request"], [f"message longer than {max_chars} characters"])
 
     categories: list[str] = []
+    flags: list[str] = []
     reasons: list[str] = []
     for category, pattern in _INPUT_RULES:
         match = pattern.search(text)
         if match:
-            categories.append(category)
+            (categories if category in HARD_BLOCK else flags).append(category)
             reasons.append(f"{category}: '{match.group(0)[:60]}'")
-    return GuardResult(not categories, text, sorted(set(categories)), reasons)
+    return GuardResult(not categories, text, sorted(set(categories)), reasons, sorted(set(flags)))
 
 
 @dataclass

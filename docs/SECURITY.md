@@ -19,8 +19,14 @@ Pattern matching catches the common phrasings and makes attacks visible, but it 
 The layers below it hold even when a pattern misses:
 
 1. **Input guard.** Unicode NFKC normalisation and zero-width stripping, so `ig​nore` still
-   matches. Then rules for instruction override, prompt exfiltration, data exfiltration and tool abuse.
-   A blocked message costs zero LLM calls and is logged as a security event.
+   matches. Then rules in four categories. **Instruction override** and **prompt exfiltration** block
+   the message (zero LLM calls, logged as a security event). **Data exfiltration** and **tool abuse**
+   patterns (asking to send data to a URL, bulk export, "I'm an admin", "bypass approval", code
+   patterns) only *flag* it: a security event is recorded and shown in the activity panel, and the
+   message is answered. They do not block because they match ordinary banking questions ("how do I
+   escalate this approval?"), and because the defences that matter do not depend on them: the role
+   comes from the JWT, permissions are re-checked in code on every tool call, and output URLs and
+   images are stripped.
 2. **Retrieved-content sanitiser.** Sentences addressed to an AI, override phrases and suspicious
    links are replaced with `[removed: text addressed to AI systems]`. The chunk stays (the rest may be
    legitimate evidence), and it is flagged in the activity panel and the trace.
@@ -42,7 +48,8 @@ The layers below it hold even when a pattern misses:
 
 - A role never *receives* documents above its access level (filter + post-filter + catalog), so the
   model cannot leak what it never saw.
-- Bulk-export phrasing ("dump all confidential…") is blocked at input.
+- Bulk-export phrasing ("dump all confidential…") is flagged at input, not blocked; what stops it is
+  that a role never receives documents above its level.
 - Output URLs are allow-listed, and images are removed.
 - Contact details (emails, phone numbers) are redacted for roles without directory access.
 - Memory is strictly per user, and threads are private to their creator (404 to anyone else).
@@ -102,7 +109,8 @@ The bot speaks as Commercial Bank to its own staff.
 - The in-process sandbox is not a boundary against a determined attacker; production isolation is
   a separate container with no network.
 - Regex guards have false negatives (novel phrasings) and some false positives. They are one layer
-  of seven, tuned to be strict on the input side where a false positive costs one rephrase.
+  of seven. Only two categories (override, prompt exfiltration) block, to keep false positives on
+  ordinary questions low.
 - The MCP server authenticates the calling *service* with a shared token (constant-time compare,
   refuses to start without one), is bound to loopback under `run.sh` and unpublished under Compose.
   It does not know the end user, so it trusts the access levels the API sends; anything that holds

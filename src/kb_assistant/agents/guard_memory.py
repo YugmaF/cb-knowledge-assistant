@@ -25,9 +25,12 @@ async def input_guard(state: AgentState, runtime: Runtime[RunContext]) -> dict[s
     settings = ctx.services.settings
     result = check_user_input(state["question"], settings.max_message_chars)
     emit({"type": "guard", "stage": "input", "allowed": result.allowed, "categories": result.categories,
-          "reasons": result.reasons})
+          "flags": result.flags, "reasons": result.reasons})
     if result.allowed:
-        return {"question": result.text, "guard": {"allowed": True}}
+        if result.flags:  # suspicious but not blocked: leave a trace for the audit log and the activity panel
+            record_security_event("input_flagged", ctx.principal, categories=result.flags, reasons=result.reasons)
+        return {"question": result.text, "guard": {"allowed": True, "flags": result.flags},
+                "security_flags": result.flags}
 
     record_security_event("input_blocked", ctx.principal, categories=result.categories, reasons=result.reasons)
     refusal = refusal_for(result, settings.brand_name)

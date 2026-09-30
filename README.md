@@ -150,7 +150,7 @@ flowchart LR
 **One turn, step by step**
 
 1. **API**: the JWT is verified and the user's token bucket is charged; the thread is bound to its owner.
-2. **input_guard**: normalises Unicode and blocks instruction override, prompt or data exfiltration and tool abuse. No LLM call is made for a blocked message.
+2. **input_guard**: normalises Unicode and **blocks** instruction override and prompt/system exfiltration, with no LLM call for a blocked message. Other suspicious phrasing (claiming to be an admin, "bypass approval", sending data to a URL, bulk export, code patterns) is **flagged, not blocked**: it is recorded as a security event and shown in the activity panel, and the question is answered, because the role comes from the JWT and RBAC, the executor and the output guards enforce the rest in code.
 3. **load_memory**: loads the running summary, the pinned previous questions, the user's stored facts and similar past interactions from any of *this user's* sessions.
 4. **supervisor** (LLM, once per turn): classifies intent, rewrites the question to stand alone, decomposes it into ≤3 steps and sets filters. Code then strips steps the role may not use and filters the user never asked for.
 5. **dispatch** (code): walks the plan. Control flow is deterministic and visible in the trace.

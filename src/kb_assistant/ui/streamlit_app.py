@@ -77,7 +77,9 @@ def describe(e: dict[str, Any]) -> str | None:
         extra = ", ".join(f"{k}={v}" for k, v in e.items() if k not in ("type", "node", "status"))
         return f"**{e['node']}** · {e['status']}" + (f" ({extra})" if extra else "")
     if t == "guard":
-        return f"input guard: {'allowed' if e['allowed'] else '**BLOCKED** ' + ', '.join(e['categories'])}"
+        if not e["allowed"]:
+            return f"input guard: **BLOCKED** {', '.join(e['categories'])}"
+        return "input guard: allowed" + (f" · flagged: {', '.join(e['flags'])}" if e.get("flags") else "")
     if t == "supervisor":
         plan = " → ".join(s["agent"] for s in e["plan"]) or "respond directly"
         notes = f"  \n  policy: {'; '.join(e['policy_notes'])}" if e.get("policy_notes") else ""
