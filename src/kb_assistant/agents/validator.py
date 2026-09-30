@@ -7,11 +7,14 @@ Deterministic checks, in order:
                       (catches hallucinated citations)
   3. citations present  a factual answer built on evidence must cite something
   4. grounding        numbers (dates, counts, durations) in a cited sentence must appear in a cited
-                      source; low word overlap with the cited source is reported as a warning
+                      source as whole numbers ("4" does not match "42"); low word overlap with the
+                      cited source is reported as a warning
 
 Hard failures send the draft back to the response agent once, with the list of problems. If it still
-fails, invalid citations are stripped and a visible caveat is added, or, for a leak or a brand
-violation, the answer is replaced by a safe message. The user never gets an unvalidated answer.
+fails, a leak or a brand violation replaces the answer with a safe message. Any other failure (invalid
+or missing citations, ungrounded numbers) is NOT blocked: the invalid citations are stripped and a
+visible caveat is appended, and the answer is delivered. So an answer that failed a check can reach the
+user, flagged; it is not silently passed off as verified.
 """
 
 from __future__ import annotations
@@ -36,10 +39,17 @@ CITATION = re.compile(rf"\[({_ID})\]")
 _GROUPED = re.compile(rf"\[({_ID}(?:\s*[,;]\s*{_ID})+)\]")
 _BRACKETED = re.compile(r"\[([^\[\]]{3,80})\]")
 _NUMBER = re.compile(r"\b\d[\d,.:]*\d\b|\b\d\b")
+_LIST_MARKER = re.compile(r"^\s*(?:[-*\u2022]\s+|\d+[.)]\s+)")  # "1. " or "- " at the start of a line
 _SENTENCE = re.compile(r"(?<=[.!?])\s+|\n+")
 # Intents that make factual claims and therefore must carry citations.
 _CITED_INTENTS = {"knowledge_question", "research_summary", "enterprise_lookup", "analytics"}
 _NOT_FOUND = re.compile(r"couldn.t find|could not find|not (in|within) the documents|no (relevant )?documents", re.I)
+
+
+def _normalise_number(token: str) -> str:
+    """Compare numbers as numbers: "1,200" is "1200" and "09" is "9", but "4" is not "42"."""
+    token = token.replace(",", "")
+    return (token.lstrip("0") or "0") if token.isdigit() else token
 
 
 def _sources(state: AgentState) -> dict[str, str]:
@@ -93,9 +103,10 @@ def validate_answer(state: AgentState, ctx: RunContext) -> dict[str, Any]:
         ids = [c for c in CITATION.findall(sentence) if c in sources]
         if not ids:
             continue
-        claim = CITATION.sub("", sentence)
+        claim = _LIST_MARKER.sub("", CITATION.sub("", sentence))  # "1." in a numbered list is not a claim
         support = " ".join(sources[i] for i in ids) + " " + sources.get("tool:research_aggregates", "")
-        missing = [n for n in _NUMBER.findall(claim) if n not in support and n.replace(",", "") not in support]
+        supported = {_normalise_number(n) for n in _NUMBER.findall(support)}
+        missing = [n for n in _NUMBER.findall(claim) if _normalise_number(n) not in supported]
         if missing:
             issues.append(f"ungrounded_numbers: {missing} in '{claim.strip()[:90]}' not found in {ids}")
         words = set(tokenize(claim))
