@@ -76,7 +76,8 @@ The layers below it hold even when a pattern misses:
 ## Authentication and authorisation
 
 - PBKDF2-SHA256 (200k iterations) password hashes, compared in constant time. The same error is
-  returned for an unknown user and a wrong password.
+  returned for an unknown user and a wrong password, and an unknown user is checked against a dummy
+  hash of equal cost, so response time does not reveal which usernames exist.
 - HS256 JWT, 2-hour expiry. The signing secret has no default: the API refuses to start unless
   `JWT_SECRET` is set, at least 32 bytes and not a published value or placeholder, because this
   repository is public and any secret in it is known to attackers. `./run.sh` generates a random one

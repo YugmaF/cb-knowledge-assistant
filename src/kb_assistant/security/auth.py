@@ -50,6 +50,10 @@ USERS: dict[str, UserRecord] = {
 
 _JWT_ALG = "HS256"
 
+# Checked against when the username is unknown, so a miss costs the same PBKDF2 work (same iteration
+# count) as a wrong password for a real user. Nobody's password hashes to this value.
+_DUMMY_HASH = "pbkdf2_sha256$200000$" + "00" * 16 + "$" + "00" * 32
+
 
 def _verify_password(password: str, encoded: str) -> bool:
     _, iterations, salt, expected = encoded.split("$")
@@ -59,8 +63,10 @@ def _verify_password(password: str, encoded: str) -> bool:
 
 def authenticate(username: str, password: str) -> Principal:
     user = USERS.get(username.strip().lower())
-    # Same error for unknown user and wrong password: do not reveal which usernames exist.
-    if user is None or not _verify_password(password, user.password_hash):
+    # Do not reveal which usernames exist: an unknown user gets the same error AND pays for the same
+    # password hash as a wrong password (the dummy hash), so neither the message nor the response time differs.
+    password_ok = _verify_password(password, user.password_hash if user else _DUMMY_HASH)
+    if user is None or not password_ok:
         raise AuthError("invalid credentials", public_message="Invalid username or password.")
     return Principal.for_role(user.user_id, user.name, user.role, user.department)
 

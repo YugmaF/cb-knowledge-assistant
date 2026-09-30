@@ -162,6 +162,20 @@ def test_auth_round_trip_and_rejections(settings):
         decode_token(issue_token(principal, settings) + "tampered", settings)
 
 
+@pytest.mark.parametrize("username,password", [("no-such-user", "whatever"), ("anil", "wrong-password")])
+def test_login_does_the_same_password_hashing_work_for_unknown_and_known_users(monkeypatch, username, password):
+    """An unknown username used to return without hashing, ~25 ms faster than a wrong password for a
+    real user, which revealed which usernames exist."""
+    from kb_assistant.security import auth
+
+    real, hashes = auth._verify_password, []
+    monkeypatch.setattr(auth, "_verify_password", lambda pw, encoded: hashes.append(encoded) or real(pw, encoded))
+    with pytest.raises(AuthError, match="invalid credentials"):
+        authenticate(username, password)
+    assert len(hashes) == 1
+    assert hashes[0].split("$")[1] == "200000", "the dummy hash must cost as much as a real one"
+
+
 def test_role_permissions_match_the_brief(viewer, analyst, admin):
     assert viewer.can(Permission.SEARCH) and not viewer.can(Permission.ANALYTICS)
     assert not viewer.can(Permission.MCP_READ) and not viewer.can(Permission.ADMIN)
